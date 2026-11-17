@@ -19,11 +19,6 @@ readonly -a retired_pns_launchagent_labels=(com.webdavis.pns-daemon com.webdavis
 readonly retired_pns_log_directory="$HOME/.local/log"
 readonly vpt_helper_binary="$HOME/.cargo/bin/vpt-macos"
 
-tool_binary_is_installed() {
-  local name=$1
-  [[ -x "$HOME/.cargo/bin/$name" ]]
-}
-
 installed_crates_record_exists() {
   [[ -f $installed_crates_record ]]
 }
@@ -40,26 +35,20 @@ cargo_tracks_the_package() {
   installed_crates_record_exists && installed_crates_record_lists_package "$repo" "$package"
 }
 
-cargo_does_not_track_the_binary() {
-  local name=$1 repo=$2 package=$3
-  tool_binary_is_installed "$name" && ! cargo_tracks_the_package "$repo" "$package"
-}
-
 features_are_declared() {
   local features=$1
   [[ -n $features ]]
 }
 
 cargo_install_from_git() {
-  local name=$1 repo=$2 package=$3 features=$4
-  local install_arguments=()
+  local repo=$1 package=$2 features=$3
+  local install_arguments=(--git "https://github.com/$repo" --locked)
   if features_are_declared "$features"; then
     install_arguments+=(--features "$features")
   fi
-  if cargo_does_not_track_the_binary "$name" "$repo" "$package"; then
-    install_arguments+=(--force)
-  fi
-  "$cargo_bin" install --git "https://github.com/$repo" --locked "${install_arguments[@]}" "$package"
+  # Cargo refuses to replace a binary that it does not track or that a package of another name installed, and forcing every run would rebuild a tool that is already current.
+  "$cargo_bin" install "${install_arguments[@]}" "$package" ||
+    "$cargo_bin" install "${install_arguments[@]}" --force "$package"
 }
 
 installed_short_sha() {
@@ -70,18 +59,20 @@ installed_short_sha() {
 }
 
 install_latest_commit() {
-  local name=$1 repo=$2 package=$3 features=$4
-  if ! cargo_install_from_git "$name" "$repo" "$package" "$features"; then
-    report_line "$name: install failed; deferred to the next apply" >&2
+  local repo=$1 package=$2 features=$3
+  if ! cargo_install_from_git "$repo" "$package" "$features"; then
+    report_line "$package: install failed; deferred to the next apply" >&2
     return 1
   fi
-  report_line "$name: $(installed_short_sha "$repo" "$package")"
+  report_line "$package: $(installed_short_sha "$repo" "$package")"
 }
 
 install_declared_tools() {
   local install_status=0
-{{- range .packages.cargo_git_tools }}
-  install_latest_commit {{ .name | quote }} {{ .repo | quote }} {{ .package | quote }} {{ get . "features" | quote }} || install_status=1
+{{- range $tool := .packages.macos.cargo.git }}
+{{- range $package := $tool.packages }}
+  install_latest_commit {{ $tool.repo | quote }} {{ $package | quote }} {{ get $tool "features" | quote }} || install_status=1
+{{- end }}
 {{- end }}
   return "$install_status"
 }

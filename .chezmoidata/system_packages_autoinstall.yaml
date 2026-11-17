@@ -238,10 +238,36 @@ packages:
         - name: Xcode
           id: "497_799_835"
     cargo:
-      - name: clauth
-      # Homebrew's gfold formula unlinks coreutils, whose GNU fold is also gfold; cargo's bin folder wins on PATH.
-      - name: gfold
-      - name: tree-sitter-cli
+      registry:
+        - clauth
+        # Homebrew's gfold formula unlinks coreutils, whose GNU fold is also gfold; cargo's bin folder wins on PATH.
+        - gfold
+        - tree-sitter-cli
+      git:
+        - repo: webdavis/chord
+          packages:
+            - chord
+        - repo: webdavis/damnit
+          packages:
+            - damnit
+            - damnit-remote-gcal
+            - damnit-remote-todoist
+        - repo: webdavis/lights
+          packages:
+            - lights
+        - repo: webdavis/pns
+          packages:
+            - pns
+          features: dev-tools
+        - repo: webdavis/posture
+          packages:
+            - posture
+        - repo: webdavis/uu
+          packages:
+            - uu
+        - repo: webdavis/vpt
+          packages:
+            - vpt
     uv:
       - graphifyy
       - nano-pdf
@@ -270,35 +296,6 @@ packages:
           # Pinned because it makes commits on its own and is not yet stable.
           - "gnhf@0.1.49"
           - hyperframes
-  cargo_git_tools:
-    - name: chord
-      repo: webdavis/chord
-      package: chord
-    - name: dam
-      repo: webdavis/damnit
-      package: damnit
-    - name: dam-remote-gcal
-      repo: webdavis/damnit
-      package: dam-remote-gcal
-    - name: dam-remote-todoist
-      repo: webdavis/damnit
-      package: dam-remote-todoist
-    - name: lights
-      repo: webdavis/lights
-      package: lights
-    - name: pns
-      repo: webdavis/pns
-      package: pns
-      features: dev-tools
-    - name: posture
-      repo: webdavis/posture
-      package: posture
-    - name: uu
-      repo: webdavis/uu
-      package: uu
-    - name: vpt
-      repo: webdavis/vpt
-      package: vpt
 
   herdr_plugins:
     - id: herdr-smart-nav
