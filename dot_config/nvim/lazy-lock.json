@@ -77,7 +77,7 @@
   "pantry.nvim": { "branch": "main", "commit": "bf68c905e3e77bd60e43bea9b96324e647260005" },
   "plenary.nvim": { "branch": "master", "commit": "74b06c6c75e4eeb3108ec01852001636d85a932b" },
   "pns": { "branch": "main", "commit": "7a5235baf473814c0dffbc850ca149067d484bb1" },
-  "pwe": { "branch": "main", "commit": "8a10942244fb62f3b2e52b6d6a99d11c9ccfa939" },
+  "pwe": { "branch": "main", "commit": "3085af596f6cb30ba969747f55db50bc708a9283" },
   "quick-scope": { "branch": "master", "commit": "6cee1d9e0b9ac0fbffeb538d4a5ba9f5628fabbc" },
   "rustaceanvim": { "branch": "main", "commit": "a968f5133b8b24f481de12f08cd79420d1ace559" },
   "snacks.nvim": { "branch": "main", "commit": "882c996cf28183f4d63640de0b4c02ec886d01f2" },
