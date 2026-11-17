@@ -1,5 +1,6 @@
 rex.bind("ctrl+d>ctrl+d", "pane.send_key", { key = "ctrl+d" })
-rex.bind("ctrl+d>ctrl+l", "pane.send_key", { key = "ctrl+l" })
+-- The form feed is written straight to the program, because pwe takes every ctrl+l key for pane focus.
+rex.bind("ctrl+d>ctrl+l", "com.superlogical.terminal.write", { data = "\f" })
 
 rex.bind("ctrl+d>1", "client.tab.goto", { index = 1 })
 rex.bind("ctrl+d>2", "client.tab.goto", { index = 2 })
