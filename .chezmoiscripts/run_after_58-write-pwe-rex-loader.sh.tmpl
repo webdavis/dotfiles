@@ -3,13 +3,71 @@
 
 set -euo pipefail
 
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
 readonly pwe_binary="$HOME/.cargo/bin/pwe"
 readonly rex_loader="$HOME/.config/rex/pwe.lua"
+readonly loaded_config_record="$HOME/.local/state/pwe/rex-config.sha256"
+readonly rex_app_binary="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"
 
-if [[ ! -x $pwe_binary ]]; then
-  exit 0
-fi
+# Rex puts its command on PATH only inside its own panes.
+find_rex() {
+  if command -v rex 2>/dev/null; then
+    return
+  fi
+  [[ -x $rex_app_binary ]] && printf '%s\n' "$rex_app_binary"
+}
 
-loader=$("$pwe_binary" rex get loader)
-printf '%s\n' "$loader" >"$rex_loader"
+loader_is_current() {
+  local loader=$1
+  [[ -f $rex_loader && $(<"$rex_loader") == "$loader" ]]
+}
+
+rex_has_loaded() {
+  local config_digest=$1
+  [[ -f $loaded_config_record && $(<"$loaded_config_record") == "$config_digest" ]]
+}
+
+rex_is_running() {
+  local rex=$1
+  "$rex" --autostart=false server status >/dev/null 2>&1
+}
+
+record_that_rex_loaded() {
+  local config_digest=$1
+  mkdir -p "$(dirname "$loaded_config_record")"
+  printf '%s\n' "$config_digest" >"$loaded_config_record"
+}
+
+main() {
+  local loader config_digest rex
+  if [[ ! -x $pwe_binary ]]; then
+    return
+  fi
+
+  loader="$("$pwe_binary" rex get loader)"
+  if ! loader_is_current "$loader"; then
+    printf '%s\n' "$loader" >"$rex_loader"
+    report_section 'pwe' 'Rex loader'
+    report_line "wrote $rex_loader"
+  fi
+
+  # Rex keeps the keys it read at its last config load, so a new pwe changes nothing until Rex reads its config again.
+  config_digest="$("$pwe_binary" rex get config | shasum -a 256 | awk '{print $1}')"
+  if rex_has_loaded "$config_digest"; then
+    return
+  fi
+  if ! rex="$(find_rex)" || ! rex_is_running "$rex"; then
+    return
+  fi
+  report_section 'pwe' 'Rex config'
+  if ! "$rex" --autostart=false config reload >/dev/null 2>&1; then
+    report_line "error[reload-failed]: rex config reload failed, so Rex still has its old pwe keys; the next apply retries." >&2
+    return
+  fi
+  record_that_rex_loaded "$config_digest"
+  report_line "Rex read its config again"
+}
+
+main
 {{ end -}}
