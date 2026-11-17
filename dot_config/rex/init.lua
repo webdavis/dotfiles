@@ -35,3 +35,10 @@ rex.bind("ctrl+d>alt+x", "session.close")
 rex.bind("ctrl+d>g", "session.switch")
 rex.bind("ctrl+d>shift+o", "session.switch")
 rex.bind("ctrl+d>shift+r", "client.config.reload")
+
+local pwe_loaded, pwe = pcall(require, "pwe")
+if pwe_loaded then
+  pwe.setup()
+else
+  print("pwe: its pane keys were not loaded: " .. tostring(pwe))
+end
