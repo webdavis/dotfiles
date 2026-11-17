@@ -32,11 +32,6 @@ skills:
           hermes:
             - "lara"
           on_demand: true
-        - repo: "ogulcancelik/herdr"
-          hermes:
-            - "default"
-        - repo: "plannotator/herdr-annotate"
-          on_demand: true
         - repo: "rjyo/moshi-skill"
           hermes:
             - "default"

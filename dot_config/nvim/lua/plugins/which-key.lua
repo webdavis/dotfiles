@@ -27,7 +27,6 @@ return {
         { "<C-g>w", group = "whatchanged" },
         { "<leader>/", group = "grep" },
         { "<leader>0", group = "quit" },
-        { "<leader>a", group = "herdr" },
         { "<leader>i", group = "aerial" },
         { "<leader>c", group = "format" },
         { "<leader>C", group = "claude" },

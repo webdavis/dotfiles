@@ -1,5 +1,5 @@
 -- The plugin runs only the WebSocket server.
--- The CLI in the herdr agent pane connects with `claude --ide` or `/ide`.
+-- The CLI connects with `claude --ide` or `/ide`.
 -- `VeryLazy` writes the lock file before the CLI connects.
 -- `cond` reads argv, because lazy.nvim evaluates it before a UI attaches.
 -- Headless runs skip the plugin.

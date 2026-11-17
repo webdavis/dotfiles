@@ -81,7 +81,7 @@ on 2026-09-14 by running it inside a throwaway clone of this repository under a 
 
 Three reasons it stayed undone:
 
-- **The branch switch reaches every worktree.** A dozen agent lanes run out of `~/.herdr/worktrees/dotfiles/*`, and
+- **The branch switch reaches every worktree.** A dozen agent lanes run out of `~/workspaces/.worktrees/dotfiles/*`, and
   moving the main checkout off `main` while they work is disruptive in a way that is hard to undo mid-flight.
 - **Its hooks are inert on this machine.** `dot_gitconfig.tmpl` sets `core.hooksPath` to `~/.config/git/hooks`
   user-wide, and git ignores `.git/hooks` entirely once that is set, so GitButler's workspace-branch guard would be

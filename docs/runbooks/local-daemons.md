@@ -66,8 +66,8 @@ uu's `rotate-logs` lane. posture's watchdog checks `pns.gateway`, listed under `
 `dot_config/osquery/private_page-launchd-allowlist.txt`, so their plists digest rather than page.
 
 `pns gateway install` writes the `PATH` of the shell that ran the apply into the plist, so the jobs the gateway starts
-find what that shell finds, `herdr` in `~/.local/bin` among them. The gateway starts the GitHub webhook receiver itself
-once `[plugins.github] webhook_secret` is set; there is no separate receiver LaunchAgent.
+find what that shell finds. The gateway starts the GitHub webhook receiver itself once `[plugins.github] webhook_secret`
+is set; there is no separate receiver LaunchAgent.
 
 Each apply step first boots out and trashes the LaunchAgent chezmoi used to write for that tool, with its old log under
 `~/.local/log`: `com.webdavis.pns-daemon` and `com.webdavis.pns-github-receiver` for pns, `io.webdavis.scalebar` for

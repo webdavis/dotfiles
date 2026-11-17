@@ -38,14 +38,13 @@ because those are the flags it manages.
 ## Worktree wiring
 
 gnhf ships its own isolation: `--worktree` puts a checkout at `<repo-parent>/dotfiles-gnhf-worktrees/<run-slug>/`. That
-is a third worktree layout, invisible to herdr's sidebar and outside worktrunk's sweep, so runs here do not use it.
-Create the worktree the way every other agent does, then run gnhf with `--current-branch` inside it, which commits on
-the branch that already exists instead of cutting a `gnhf/` branch of its own:
+is a third worktree layout, outside worktrunk's sweep, so runs here do not use it. Create the worktree the way every
+other agent does, then run gnhf with `--current-branch` inside it, which commits on the branch that already exists
+instead of cutting a `gnhf/` branch of its own:
 
 ```bash
-herdr worktree create --cwd ~/workspaces/Ivy/webdavis/dotfiles \
-  --branch gnhf/<slug> --no-focus
-cd ~/.herdr/worktrees/dotfiles/gnhf-<slug>
+wt switch --create gnhf/<slug>
+cd ~/workspaces/.worktrees/dotfiles/gnhf-<slug>
 GRAPHIFY_SKIP_HOOK=1 gnhf --current-branch --max-iterations <n> \
   --stop-when "<observable condition>" < docs/gnhf-objective.md
 ```

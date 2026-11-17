@@ -38,5 +38,5 @@
   - Merging:
     1. Use `wt switch main` to move to the `main` branch checkout.
     2. Then use `npx -y gh-axi pr merge <number> --rebase` to merge the PR. GitHub deletes the remote branch.
-    3. Then use `wt remove <branch>` to remove the worktree and the local branch, and close the herdr panes that sat in it.
+    3. Then use `wt remove <branch>` to remove the worktree and the local branch.
     4. Then check `wt list`. If the branch or its worktree is still listed, report what was left behind and why.

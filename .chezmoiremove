@@ -15,12 +15,14 @@
 .claude/agents/lara.md
 .codex/agents/lara.toml
 
-# tuicr and the worktree review built on it are gone, with the herdr windows that opened them.
-.config/herdr/processes.toml
+# tuicr and the worktree review built on it are gone.
 .local/bin/worktree-review.sh
 
-# pwe replaces herdr-picker.
-.config/herdr/plugins/config/herdr-picker
+# herdr is gone, with its config, its helper scripts and its Neovim backend.
+.config/herdr
+.local/bin/herdr-action-menu.sh
+.local/bin/herdr-close-removed-worktree.sh
+.config/nvim/lua/smart-splits
 
 # herdr-nvim and annotate are gone from herdr, so their Neovim side goes too.
 .config/nvim/lua/plugins/herdr-nvim.lua

@@ -19,10 +19,10 @@
   Two categories of field:
 
     STABLE      overwritten from here on every apply, whatever the live file
-                says: the profile roster, the fallback chain, `wrap_off`,
-                `refresh_interval_ms` and the declared [herdr] keys.
-    FREE-DRIFT  passed through untouched: `active_profile`, the other [herdr]
-                keys and anything else clauth adds to this file later.
+                says: the profile roster, the fallback chain, `wrap_off` and
+                `refresh_interval_ms`.
+    FREE-DRIFT  passed through untouched: `active_profile` and anything else
+                clauth adds to this file later.
 
   `active_profile` IS RUNTIME STATE AND IS NEVER WRITTEN FROM HERE, on the same
   reasoning that keeps [hooks.state] out of the Codex template: a snapshot in
@@ -77,37 +77,14 @@
 {{- $merged = set $merged "wrap_off" false -}}
 
 {{- /* How often the usage surface re-reads quota. 90s rather than the default,
-       because the herdr sidebar renders it continuously and a tighter poll
-       spends real requests on a number that moves slowly.
+       because a tighter poll spends real requests on a number that moves
+       slowly.
 
        int64, NOT a bare 90000: `fromToml` decodes every TOML integer as int64
        while a bare template literal is an int, and `deepEqual` is type-strict,
        so the bare form makes the no-op branch at the foot of this file compare
-       unequal forever and rewrite the file on every single apply. Same for
-       `tag_watch_secs` below. */ -}}
+       unequal forever and rewrite the file on every single apply. */ -}}
 {{- $merged = set $merged "refresh_interval_ms" (int64 90000) -}}
-
-{{- /* The clauth herdr plugin's own presentation. `pane_tag` and the two
-       delegate keys are what make `$clauth` and `$clauth_delegate` render in
-       the sidebar row declared in dot_config/herdr/config.toml, so these move
-       together with that row. Overlaid key by key onto the live [herdr]
-       table rather than replacing it: clauth writes its own keys there too
-       (`first_landing_done`), and replacing the table dropped them and made
-       every apply rewrite the file. */ -}}
-{{- $herdr := dict -}}
-{{- if eq (kindOf (index $merged "herdr")) "map" -}}
-{{-   $herdr = index $merged "herdr" -}}
-{{- end -}}
-{{- range $key, $value := (dict
-    "popup_width" "half"
-    "pane_tag" true
-    "tag_watch_secs" (int64 5)
-    "border_label" true
-    "delegate_dot" true
-    "delegate_row_text" true) -}}
-{{-   $herdr = set $herdr $key $value -}}
-{{- end -}}
-{{- $merged = set $merged "herdr" $herdr -}}
 
 {{- /* Seed only. Present in the live file means the daemon owns it and the
        parse above already carried it through untouched. */ -}}
