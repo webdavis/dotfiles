@@ -36,3 +36,4 @@
 .config/nvim/lua/plugins/noice.lua
 .config/nvim/lua/plugins/unimpaired.lua
 .config/nvim/lua/custom_api/preview_host.lua
+.config/nvim/lua/plugins/smart-splits.lua
