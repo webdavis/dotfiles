@@ -1,5 +1,4 @@
-return {
-  "webdavis/pns",
+return vim.tbl_extend("force", require("custom_api.paired_plugin").spec("pns"), {
   lazy = true,
   opts = {
     binary = "~/.cargo/bin/pns",
@@ -7,4 +6,4 @@ return {
     project = nil,
     pane = nil,
   },
-}
+})

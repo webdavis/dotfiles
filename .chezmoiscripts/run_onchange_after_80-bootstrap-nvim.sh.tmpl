@@ -3,11 +3,14 @@
 
 set -euo pipefail
 
-# lazy-lock.json {{ include (joinPath $nvim "lazy-lock.json") | sha256sum }}
+# lazy-lock.json {{ include (joinPath $nvim "lock/lazy-lock.json") | sha256sum }}
 # lua/plugins/lsp.lua {{ include (joinPath $nvim "lua/plugins/lsp.lua") | sha256sum }}
 # lua/plugins/treesitter.lua {{ include (joinPath $nvim "lua/plugins/treesitter.lua") | sha256sum }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly lock_file={{ joinPath $nvim "lock/lazy-lock.json" | quote }}
+readonly lock_is_complete={{ joinPath .chezmoi.sourceDir "scripts/nvim-lock-is-complete.sh" | quote }}
 
 readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
 readonly cargo_bin_directory="$HOME/.cargo/bin"
@@ -41,8 +44,25 @@ nvim_is_installed() {
   command_is_on_path nvim
 }
 
+lock_file_lists_plugins() {
+  jq -e 'type == "object" and length > 0' "$lock_file" >/dev/null 2>&1
+}
+
+# lazy.nvim rewrites the lock file from what it managed to install, and treats one it cannot read as empty.
+# Without these checks a failed restore would shrink the file, and an unreadable file would move every plugin to its newest commit.
 restore_plugins_to_lockfile() {
-  nvim --headless "+Lazy! restore" +qa
+  local lock_before
+  if ! lock_file_lists_plugins; then
+    report_line "error[unreadable-lock]: $lock_file is empty or unreadable; plugins were left as they are." >&2
+    return 1
+  fi
+  lock_before="$(<"$lock_file")"
+  nvim --headless "+Lazy! restore" +qa || true
+  if ! "$lock_is_complete" "$lock_file"; then
+    printf '%s\n' "$lock_before" >"$lock_file"
+    report_line "error[incomplete-restore]: the restore left the lock file incomplete, so the file was put back." >&2
+    return 1
+  fi
 }
 
 install_mason_tools() {

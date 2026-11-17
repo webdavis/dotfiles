@@ -37,6 +37,10 @@ test-bindings:
 test-nvim:
   ./scripts/test/nvim.sh
 
+# Run the specs for the scripts that keep the Neovim lock file and its paired plugins in step.
+test-nvim-lock:
+  ./scripts/test/nvim-lock.sh
+
 test-espanso-url-menu:
   python3 scripts/test/espanso-url-menu.py
 
@@ -45,7 +49,7 @@ test-omp-extensions:
   bun test scripts/test
 
 # Run all test suites.
-test: test-nvim test-bindings test-espanso-url-menu test-omp-extensions
+test: test-nvim test-nvim-lock test-bindings test-espanso-url-menu test-omp-extensions
 
 # Run the three CI gates locally before opening a pull request.
 ship:

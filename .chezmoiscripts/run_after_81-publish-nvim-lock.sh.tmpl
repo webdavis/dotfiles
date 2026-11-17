@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly repo={{ .chezmoi.sourceDir | quote }}
+readonly lock_in_repo="dot_config/nvim/lock/lazy-lock.json"
+readonly live_lock="$HOME/.config/nvim/lazy-lock.json"
+
+# Git merges the lock file plugin by plugin only once it knows the merge driver that `.gitattributes` names.
+# The path is relative to the checkout, so every worktree of the repo runs its own copy of the driver.
+teach_git_to_merge_the_lock() {
+  git -C "$repo" config merge.lazylock.driver 'scripts/nvim-lock-merge.sh %O %A %B' || true
+}
+
+main() {
+  local report
+  teach_git_to_merge_the_lock
+  report="$(cd "$repo" && scripts/nvim-lock-publish.sh "$lock_in_repo" 2>&1)" || true
+  if [[ ! -L $live_lock ]]; then
+    report+="${report:+$'\n'}error[lock-not-linked]: $live_lock is not a link into this repo, so plugin updates are not being recorded."
+  fi
+  if [[ -z $report ]]; then
+    return
+  fi
+  report_section 'nvim' 'plugin versions'
+  report_line "$report"
+}
+
+main

@@ -16,6 +16,7 @@ scripts/
 .config/nvim/README.md
 .config/nvim/docs/
 .config/nvim/tests/
+.config/nvim/lock/
 
 .shellcheckrc
 .editorconfig

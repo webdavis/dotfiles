@@ -415,7 +415,7 @@ return {
     "nvim-neotest/neotest",
     commit = "27bf921498043f7ecd821d6db68d05de244bbd02",
     dependencies = {
-      "webdavis/pns",
+      "pns",
       -- Lazy, because lazy.nvim turns the nvim-nio rockspec dependency into a startup spec.
       { "nvim-neotest/nvim-nio", lazy = true },
       { "nvim-neotest/neotest-python", commit = "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
@@ -495,7 +495,9 @@ return {
 
       -- neotest-golang must be called, because it sets its options only inside `__call`.
       require("neotest").setup({
-        consumers = { pns = require("pns.integrations.neotest").consumer },
+        consumers = require("custom_api.paired_plugin").is_present("pns") and {
+          pns = require("pns.integrations.neotest").consumer,
+        } or {},
         adapters = {
           require("neotest-python"),
           require("neotest-golang")({}),

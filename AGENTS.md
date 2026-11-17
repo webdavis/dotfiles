@@ -102,13 +102,19 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
      3. Set `version` only when the README asks for it.
   2. `chezmoi apply` that file.
   3. `nvim --headless "+Lazy! install" +qa` clones it and adds its lock line.
-  4. `chezmoi re-add ~/.config/nvim/lazy-lock.json`.
 - Remove:
   1. Remove its spec:
      - File holds only this plugin: `chezmoi destroy --force` it.
      - File holds others too: delete its table, then `chezmoi apply` the file.
   2. `nvim --headless "+Lazy! clean" +qa` deletes the clone and its lock line.
-  3. `chezmoi re-add ~/.config/nvim/lazy-lock.json`.
+- Lock file:
+  - `~/.config/nvim/lazy-lock.json` is a link to `dot_config/nvim/lock/lazy-lock.json`, so lazy.nvim writes plugin versions straight into this repo.
+  - The next `chezmoi apply` publishes a changed lock file to `main` in a commit of its own. Leave the file out of other commits.
+  - Undo an update: put the earlier lock back with `git restore dot_config/nvim/lock/lazy-lock.json`, or with `git restore --source <commit> dot_config/nvim/lock/lazy-lock.json` once the update is published and pulled. Then `:Lazy restore`.
+- Plugin that ships in the repo of a cargo-git program:
+  1. Set `nvim_plugin: true` on its entry in `.chezmoidata/system_packages_autoinstall.yaml`. Each apply then keeps a checkout under `~/.local/share/nvim/paired/` on the commit the program was built from.
+  2. Build its spec on `require("custom_api.paired_plugin").spec(<name>)`, as `dot_config/nvim/lua/plugins/pwe.lua` does. It gets no lock line.
+  3. Other specs name it by its plain name in `dependencies`, and use it only when `is_present(<name>)`, because the checkout is absent until an apply has built the program.
 
 ### Config
 

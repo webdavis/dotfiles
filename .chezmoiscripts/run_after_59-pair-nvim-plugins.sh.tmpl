@@ -1,0 +1,23 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly pair_plugins={{ joinPath .chezmoi.sourceDir "scripts/nvim-paired-plugins.sh" | quote }}
+readonly paired_plugins_folder="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/paired"
+readonly -a repos_with_a_plugin=({{ range .packages.macos.cargo.git }}{{ if get . "nvim_plugin" }}{{ .repo | quote }} {{ end }}{{ end }})
+
+main() {
+  local report
+  report="$("$pair_plugins" "$paired_plugins_folder" ${repos_with_a_plugin[@]+"${repos_with_a_plugin[@]}"} 2>&1)" || true
+  if [[ -z $report ]]; then
+    return
+  fi
+  report_section 'nvim' 'plugins that ship with a program'
+  report_line "$report"
+}
+
+main
+{{ end -}}
