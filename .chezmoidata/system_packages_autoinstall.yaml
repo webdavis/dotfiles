@@ -262,6 +262,9 @@ packages:
         - repo: webdavis/posture
           packages:
             - posture
+        - repo: webdavis/pwe
+          packages:
+            - pwe
         - repo: webdavis/uu
           packages:
             - uu
