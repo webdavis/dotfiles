@@ -2,7 +2,10 @@
 
 All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/git/hooks`, set in
 `dot_gitconfig.tmpl`), so they apply to every repo. Three of them are dispatchers that do nothing unless the repository
-tracks its own hook of the same name under `.githooks/`.
+tracks its own hook of the same name under `.githooks/` and you have trusted that repository.
+
+A dispatcher runs a repository's hook only after you run `git config --local hooks.trusted true` in it. A fresh clone
+carries no local config, so someone else's repository cannot run its hooks on this Mac until you say so.
 
 ## prepare-commit-msg: user-wide AI commit messages
 

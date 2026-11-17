@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Runs the repo's own .githooks/post-commit, so a per-repo core.hooksPath never hides the global hooks.
+# A repo's hook runs only after `git config --local hooks.trusted true`, which a clone cannot set for itself.
+[[ $(git config --local --type=bool --get hooks.trusted 2>/dev/null) == true ]] || exit 0
 toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 repo_hook="${toplevel}/.githooks/post-commit"
 [[ -x $repo_hook ]] && exec "$repo_hook" "$@"
