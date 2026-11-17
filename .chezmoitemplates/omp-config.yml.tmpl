@@ -8,8 +8,10 @@
 {{-   $merged = dict -}}
 {{- end -}}
 
-{{- /* Shell commands ask first. Reads and edits inside the workspace run unasked. */ -}}
-{{- $merged = setValueAtPath (list "tools" "approvalMode") "write" $merged -}}
+{{- /* Every tool call runs unasked, and the rules below stop the bash tool alone. */ -}}
+{{- /* A Broccoli session reaches work systems, so its shell commands ask first. */ -}}
+{{- $approvalMode := ternary "write" "yolo" (eq (get . "ompProfile" | default "") "broccoli") -}}
+{{- $merged = setValueAtPath (list "tools" "approvalMode") $approvalMode $merged -}}
 
 {{- /* Both rules are needed: the first matches a bare rm, the second rm with arguments. */ -}}
 {{- $merged = setValueAtPath (list "bash" "patterns") (list
