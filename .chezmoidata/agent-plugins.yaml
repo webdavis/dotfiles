@@ -1,7 +1,7 @@
 # Plugins per harness: a marketplace owner/repo and the <plugin>@<marketplace> ids installed from it.
 # marketplace_in_settings: false keeps a marketplace out of settings.json because its own tool manages it.
-# omp lists what omp's default profile installs into its own folders; each id is also one Claude Code installs.
-# omp_npm lists the npm extensions of omp's default profile; a tool named under allow runs unasked.
+# omp.plugins lists what omp's default profile installs into its own folders; each id is also one Claude Code installs.
+# omp.extensions lists the npm extensions of omp's default profile; a tool named under allow runs unasked.
 # hermes lists plugin catalog names.
 plugins:
   harnesses:
@@ -40,48 +40,49 @@ plugins:
         plugins:
           - "agent-skills@addy-agent-skills"
     omp:
-      - marketplace: "mattpocock/skills"
-        plugins:
-          - "mattpocock-skills@mattpocock"
-      - marketplace: "addyosmani/agent-skills"
-        plugins:
-          - "agent-skills@addy-agent-skills"
-      - marketplace: "michael-denyer/pstack-claude"
-        plugins:
-          - "pstack@pstack-claude"
-      - marketplace: "DietrichGebert/ponytail"
-        plugins:
-          - "ponytail@ponytail"
-      - marketplace: "kepano/obsidian-skills"
-        plugins:
-          - "obsidian@obsidian-skills"
-      - marketplace: "webdavis/pns"
-        plugins:
-          - "pns@pns"
-      - marketplace: "webdavis/skills"
-        plugins:
-          - "clean-code@webdavis"
-          - "git@webdavis"
-      - marketplace: "max-sixty/worktrunk"
-        plugins:
-          - "worktrunk@worktrunk"
-      - marketplace: "anthropics/skills"
-        plugins:
-          - "document-skills@anthropic-agent-skills"
-      - marketplace: "anthropics/claude-plugins-official"
-        plugins:
-          - "frontend-design@claude-plugins-official"
-          - "skill-creator@claude-plugins-official"
-          - "code-simplifier@claude-plugins-official"
-          - "security-guidance@claude-plugins-official"
-          - "playwright@claude-plugins-official"
-    omp_npm:
-      - package: "@ff-labs/pi-fff"
-        allow:
-          - "fffind"
-          - "ffgrep"
-          - "fff-multi-grep"
-      - package: "omp-cache-meter"
+      plugins:
+        - marketplace: "mattpocock/skills"
+          plugins:
+            - "mattpocock-skills@mattpocock"
+        - marketplace: "addyosmani/agent-skills"
+          plugins:
+            - "agent-skills@addy-agent-skills"
+        - marketplace: "michael-denyer/pstack-claude"
+          plugins:
+            - "pstack@pstack-claude"
+        - marketplace: "DietrichGebert/ponytail"
+          plugins:
+            - "ponytail@ponytail"
+        - marketplace: "kepano/obsidian-skills"
+          plugins:
+            - "obsidian@obsidian-skills"
+        - marketplace: "webdavis/pns"
+          plugins:
+            - "pns@pns"
+        - marketplace: "webdavis/skills"
+          plugins:
+            - "clean-code@webdavis"
+            - "git@webdavis"
+        - marketplace: "max-sixty/worktrunk"
+          plugins:
+            - "worktrunk@worktrunk"
+        - marketplace: "anthropics/skills"
+          plugins:
+            - "document-skills@anthropic-agent-skills"
+        - marketplace: "anthropics/claude-plugins-official"
+          plugins:
+            - "frontend-design@claude-plugins-official"
+            - "skill-creator@claude-plugins-official"
+            - "code-simplifier@claude-plugins-official"
+            - "security-guidance@claude-plugins-official"
+            - "playwright@claude-plugins-official"
+      extensions:
+        - package: "@ff-labs/pi-fff"
+          allow:
+            - "fffind"
+            - "ffgrep"
+            - "fff-multi-grep"
+        - package: "omp-cache-meter"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:

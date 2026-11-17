@@ -91,11 +91,11 @@ check_omp_plugins_are_claude_plugins() {
   while IFS= read -r id; do
     problem "omp plugin $id is not a Claude Code plugin in agent-plugins.yaml"
   done < <(comm -23 \
-    <(plugins_json | jq -r '.omp[].plugins[]' | sort -u) \
+    <(plugins_json | jq -r '.omp.plugins[].plugins[]' | sort -u) \
     <(plugins_json | jq -r '[.claude, .codex_and_claude] | add | .[].plugins[]' | sort -u))
   while IFS= read -r id; do
     problem "omp plugin $id is listed twice in agent-plugins.yaml"
-  done < <(plugins_json | jq -r '.omp[].plugins[]' | duplicates_in)
+  done < <(plugins_json | jq -r '.omp.plugins[].plugins[]' | duplicates_in)
 }
 
 check_duplicate_hermes_identifiers() {

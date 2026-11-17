@@ -15,7 +15,7 @@
 {{- /* Each line is "<omp profile> <marketplace name> <source>" or "<omp profile> <plugin id>". */ -}}
 {{- $ompMarketplaces := list -}}
 {{- $ompPlugins := list -}}
-{{- range $profile, $entries := dict "default" .plugins.harnesses.omp "broccoli" .broccoli.omp.plugins -}}
+{{- range $profile, $entries := dict "default" .plugins.harnesses.omp.plugins "broccoli" .broccoli.omp.plugins -}}
 {{-   range $entries -}}
 {{-     $name := splitList "@" (index .plugins 0) | last -}}
 {{-     $source := .marketplace -}}
@@ -25,7 +25,7 @@
 {{-   end -}}
 {{- end -}}
 {{- $ompNpmPackages := list -}}
-{{- range .plugins.harnesses.omp_npm -}}{{- $ompNpmPackages = append $ompNpmPackages .package -}}{{- end -}}
+{{- range .plugins.harnesses.omp.extensions -}}{{- $ompNpmPackages = append $ompNpmPackages .package -}}{{- end -}}
 #!/usr/bin/env bash
 # agent-plugins.yaml: {{ include ".chezmoidata/agent-plugins.yaml" | sha256sum }}
 # broccoli-tools.yaml omp plugins: {{ .broccoli.omp.plugins | toJson | sha256sum }}
