@@ -5,6 +5,7 @@ set -euo pipefail
 
 # .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+# upstream heads: {{ $repos := list }}{{ range .packages.macos.cargo.git }}{{ $repos = append $repos .repo }}{{ end }}{{ output "bash" "-c" (printf "%q %s" (joinPath .chezmoi.sourceDir "scripts/cargo-git-tool-heads.sh") (join " " $repos)) | sha256sum }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "load-launchagent.sh.tmpl" }}
