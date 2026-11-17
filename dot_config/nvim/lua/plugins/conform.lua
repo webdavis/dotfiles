@@ -142,9 +142,9 @@ return {
           return nil
         end
 
-        -- auto-save.nvim sets this flag over its own write,
-        -- so a timed save leaves the cursor and undo history alone.
-        if vim.b[bufnr].autosave_write then
+        -- pantry's autosave makes a pause save while the work goes on,
+        -- so that save leaves the cursor and undo history alone.
+        if vim.b[bufnr].pantry_save == "pause" then
           return nil
         end
 
