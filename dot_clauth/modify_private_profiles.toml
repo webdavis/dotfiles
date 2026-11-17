@@ -86,6 +86,9 @@
        unequal forever and rewrite the file on every single apply. */ -}}
 {{- $merged = set $merged "refresh_interval_ms" (int64 90000) -}}
 
+{{- /* Drops the settings of clauth's herdr plugin, which is no longer installed. */ -}}
+{{- $merged = unset $merged "herdr" -}}
+
 {{- /* Seed only. Present in the live file means the daemon owns it and the
        parse above already carried it through untouched. */ -}}
 {{- if not (hasKey $merged "active_profile") -}}
