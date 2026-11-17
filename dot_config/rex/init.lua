@@ -44,6 +44,9 @@ rex.bind("ctrl+d>shift+r", "client.config.reload")
 
 rex.bind("cmd+b", "client.sidebar.toggle")
 rex.bind("cmd+/", "pane.view_activity")
+rex.bind("cmd+f", "pane.float")
+rex.bind("cmd+j", "pane.new_floating")
+rex.bind("cmd+m", "pane.minimize_floating")
 
 local pwe_loaded, pwe = pcall(require, "pwe")
 if pwe_loaded then
