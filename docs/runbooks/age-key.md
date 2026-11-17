@@ -16,15 +16,12 @@ either form.
 
 ### Every managed encrypted target
 
-Each `encrypted_` source file below decrypts to the listed target on `chezmoi apply`. Rotation and recovery both cover
-all of them. There are four files, all of them hermes PROFILE configs.
+The `encrypted_` source file below decrypts to the listed target on `chezmoi apply`. Rotation and recovery both cover
+it. There is one file, a hermes PROFILE config.
 
-| Source file (in this repo)                                                        | Decrypts to                                |
-| --------------------------------------------------------------------------------- | ------------------------------------------ |
-| `private_dot_hermes/profiles/private_butters/encrypted_private_config.yaml.age`   | `~/.hermes/profiles/butters/config.yaml`   |
-| `private_dot_hermes/profiles/private_concerned/encrypted_private_config.yaml.age` | `~/.hermes/profiles/concerned/config.yaml` |
-| `private_dot_hermes/profiles/private_elaine/encrypted_private_config.yaml.age`    | `~/.hermes/profiles/elaine/config.yaml`    |
-| `private_dot_hermes/profiles/private_nicodemus/encrypted_private_config.yaml.age` | `~/.hermes/profiles/nicodemus/config.yaml` |
+| Source file (in this repo)                                                   | Decrypts to                           |
+| ---------------------------------------------------------------------------- | ------------------------------------- |
+| `private_dot_hermes/profiles/private_lara/encrypted_private_config.yaml.age` | `~/.hermes/profiles/lara/config.yaml` |
 
 The ROOT config, `~/.hermes/config.yaml`, left this list on 2026-09-14. It was
 `private_dot_hermes/encrypted_private_config.yaml.age` and it is now a chezmoi modify-template,
@@ -89,15 +86,11 @@ it is available; confirm with `chezmoi --version` before starting.
    - Rollback: after reverting `.chezmoi.toml.tmpl` (previous step), run `chezmoi init` again to restore the old
      rendered recipient.
 
-5. **Re-encrypt each managed target to the new recipient, listed explicitly by path.** Scope the command to the four
-   encrypted files so it cannot ingest an unrelated modified file:
+5. **Re-encrypt the managed target to the new recipient, listed explicitly by path.** Scope the command to the one
+   encrypted file so it cannot ingest an unrelated modified file:
 
    ```
-   chezmoi re-add --re-encrypt \
-     ~/.hermes/profiles/butters/config.yaml \
-     ~/.hermes/profiles/concerned/config.yaml \
-     ~/.hermes/profiles/elaine/config.yaml \
-     ~/.hermes/profiles/nicodemus/config.yaml
+   chezmoi re-add --re-encrypt ~/.hermes/profiles/lara/config.yaml
    ```
 
    chezmoi reads each decrypted target, re-encrypts it to the new recipient, and rewrites the `encrypted_` source file,

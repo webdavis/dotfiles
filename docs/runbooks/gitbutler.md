@@ -35,11 +35,11 @@ The apply runs that script (`run_after_63`), and the uu `tool-skills` lane runs 
 cask upgrade regenerates the skill without waiting for an apply. The script prints `gitbutler: <old> to <new>` when the
 generated `version` changed and nothing otherwise.
 
-The entry in `.chezmoidata/agent-skills.yaml` is `but: - skill: gitbutler` with `on_demand: true` and
-`hermes: [nicodemus]`: Claude Code gets a link into the store and the skill marked user-invocable only, Codex reads the
-store and gets the `agents/openai.yaml` on-demand overlay, and the nicodemus Hermes profile gets a link. Nothing is
-committed: `but skill check --global` compares the generated copy with `but --version`, and `but skill check --update`
-rewrites the deployed copy, which the next apply or lane run regenerates anyway.
+The entry in `.chezmoidata/agent-skills.yaml` is `but: - skill: gitbutler` with `on_demand: true`: Claude Code gets a
+link into the store and the skill marked user-invocable only, and Codex reads the store and gets the
+`agents/openai.yaml` on-demand overlay. Nothing is committed: `but skill check --global` compares the generated copy
+with `but --version`, and `but skill check --update` rewrites the deployed copy, which the next apply or lane run
+regenerates anyway.
 
 ## What the agent wizard configured
 
