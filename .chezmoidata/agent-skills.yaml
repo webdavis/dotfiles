@@ -57,6 +57,7 @@ skills:
       apps:
         - skill: "cua-driver"
           on_demand: true
+        - skill: "rex"
     media:
       npx:
         - repo: "heygen-com/hyperframes"
