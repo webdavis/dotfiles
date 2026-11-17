@@ -35,6 +35,7 @@ rex.bind("ctrl+d>=", "pane.zoom")
 rex.bind("ctrl+d>alt+x", "session.close")
 rex.bind("ctrl+d>g", "session.switch")
 rex.bind("ctrl+d>shift+o", "session.switch")
+rex.bind("ctrl+d>c", "pane.copy_mode.enter")
 rex.bind("ctrl+d>shift+r", "client.config.reload")
 
 rex.bind("cmd+b", "client.sidebar.toggle")
