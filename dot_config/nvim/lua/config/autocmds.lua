@@ -192,23 +192,21 @@ vim.api.nvim_create_autocmd("QuitPre", {
   end,
 })
 
-vim.api.nvim_create_autocmd("User", {
-  pattern = "AutoSaveWritePost",
+vim.api.nvim_create_autocmd("BufWritePost", {
   group = augroup("auto_save"),
-  callback = function(opts)
-    if opts.data.saved_buffer ~= nil then
-      local buffer = opts.data.saved_buffer
-      local path = vim.api.nvim_buf_get_name(buffer)
-
-      local filename = vim.fn.fnamemodify(path, ":t")
-      local time = vim.fn.strftime("%H:%M:%S")
-
-      vim.api.nvim_echo({
-        { "AutoSave: saved ", "Comment" },
-        { filename, "String" },
-        { " at ", "Comment" },
-        { time, "Number" },
-      }, false, {})
+  callback = function(event)
+    local kind = vim.b[event.buf].pantry_save
+    if kind == "leave" or kind == "pause" then
+      local filename = vim.fn.fnamemodify(event.match, ":t")
+      -- The jar writes silently, so the message waits until that write is over.
+      vim.schedule(function()
+        vim.api.nvim_echo({
+          { "AutoSave: saved ", "Comment" },
+          { filename, "String" },
+          { " at ", "Comment" },
+          { vim.fn.strftime("%H:%M:%S"), "Number" },
+        }, false, {})
+      end)
     end
   end,
 })

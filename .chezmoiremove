@@ -37,3 +37,7 @@
 .config/nvim/lua/plugins/unimpaired.lua
 .config/nvim/lua/custom_api/preview_host.lua
 .config/nvim/lua/plugins/smart-splits.lua
+
+# pantry's autosave jar replaced auto-save.nvim.
+.config/nvim/lua/plugins/autosave.lua
+.config/nvim/lua/custom_api/autosave.lua

@@ -1,6 +1,5 @@
 {
   "aerial.nvim": { "branch": "master", "commit": "28fe6e822ae344544c379d60fcb13c9519a1f08a" },
-  "auto-save.nvim": { "branch": "main", "commit": "9aabcb8396224dcbf8d51c0c1d620d88a46e89d7" },
   "avante.nvim": { "branch": "main", "commit": "c7e4e738a682a972f0b6b75f29106550b4ec7522" },
   "blink-calc": { "branch": "main", "commit": "1b75c20cbb21c95bf08694eed605fa0bdbbe5ca2" },
   "blink-cmp-env": { "branch": "main", "commit": "6b147eca6fa5975d29f5508aff24e9a9acb6a1f5" },
@@ -74,7 +73,7 @@
   "oil-git.nvim": { "branch": "main", "commit": "95b0d83f70e5e3e889f4d2f8b70eba5185ff67b6" },
   "oil.nvim": { "branch": "master", "commit": "b73018b75affd13fa38e2fc94ef753b465f770d7" },
   "overseer.nvim": { "branch": "master", "commit": "33dc4f7808b0bb705250362fac7947c7d7dfcf96" },
-  "pantry.nvim": { "branch": "main", "commit": "bf68c905e3e77bd60e43bea9b96324e647260005" },
+  "pantry.nvim": { "branch": "main", "commit": "c8bdbc118567fe44301402af7a74b6e486a3628c" },
   "plenary.nvim": { "branch": "master", "commit": "74b06c6c75e4eeb3108ec01852001636d85a932b" },
   "pns": { "branch": "main", "commit": "7a5235baf473814c0dffbc850ca149067d484bb1" },
   "pwe": { "branch": "main", "commit": "3085af596f6cb30ba969747f55db50bc708a9283" },

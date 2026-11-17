@@ -55,14 +55,14 @@ end
 
 ---Run the spec's `format_on_save` hook with both switches set.
 ---@param autoformat boolean value of the global autoformat toggle
----@param autosave_write boolean|nil value of auto-save.nvim's per-buffer flag
-local function on_save(autoformat, autosave_write)
+---@param save_kind string|nil the kind of save pantry's autosave is making, if any
+local function on_save(autoformat, save_kind)
   local hook = opts().format_on_save
   assert(type(hook) == "function", "format_on_save is not a function")
   local bufnr = scratch()
   local saved = vim.g.autoformat_on_save
   vim.g.autoformat_on_save = autoformat
-  vim.b[bufnr].autosave_write = autosave_write
+  vim.b[bufnr].pantry_save = save_kind
   local ok, result = pcall(hook, bufnr)
   vim.g.autoformat_on_save = saved
   assert(ok, result)
@@ -110,9 +110,13 @@ return {
     assert(on_save(false, nil) == nil, "formatted with autoformat-on-save off")
   end,
 
-  -- auto-save writes on a timer, and formatting then would move the cursor and undo history.
-  ["an automatic write formats nothing"] = function()
-    assert(on_save(true, true) == nil, "formatted an automatic write")
+  -- A pause save happens while the work goes on, and formatting then would move the cursor.
+  ["a pause save formats nothing"] = function()
+    assert(on_save(true, "pause") == nil, "formatted a pause save")
+  end,
+
+  ["a leave save formats"] = function()
+    assert(type(on_save(true, "leave")) == "table", "did not format a leave save")
   end,
 
   ["the deleted formatting workaround is gone"] = function()
