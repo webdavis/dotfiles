@@ -1,0 +1,15 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly pwe_binary="$HOME/.cargo/bin/pwe"
+readonly rex_loader="$HOME/.config/rex/pwe.lua"
+
+if [[ ! -x $pwe_binary ]]; then
+  exit 0
+fi
+
+loader=$("$pwe_binary" rex get loader)
+printf '%s\n' "$loader" >"$rex_loader"
+{{ end -}}
