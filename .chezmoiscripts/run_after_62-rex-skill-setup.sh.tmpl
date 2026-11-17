@@ -1,0 +1,49 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# Runs before the agent skills install so the rex skill is in the store when it links it.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly rex_app_binary="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"
+
+# Rex puts its command on PATH only inside its own panes.
+find_rex() {
+  if command -v rex 2>/dev/null; then
+    return
+  fi
+  [[ -x $rex_app_binary ]] && printf '%s\n' "$rex_app_binary"
+}
+
+# Codex's skill folder is the store. The agent skills install links Claude Code and omp to it,
+# and the Claude Code settings declare the hook, so rex sets up Codex alone.
+set_up_the_rex_skill() {
+  local rex=$1
+  "$rex" skill setup --agent codex --json </dev/null 2>&1
+}
+
+changes_in() {
+  local setup_result=$1
+  jq -r '.steps[] | select(.change != "unchanged") | "\(.kind) \(.change): \(.path)"' <<<"$setup_result"
+}
+
+main() {
+  local rex setup_result changes
+  if ! rex="$(find_rex)"; then
+    return
+  fi
+
+  if ! setup_result="$(set_up_the_rex_skill "$rex")" || ! changes="$(changes_in "$setup_result")"; then
+    report_section 'rex' 'agent skill'
+    report_line "error[setup-failed]: rex skill setup --agent codex failed; the next apply retries." >&2
+    return
+  fi
+  if [[ -n $changes ]]; then
+    report_section 'rex' 'agent skill'
+    report_line "$changes"
+  fi
+}
+
+main "$@"
+{{ end -}}
