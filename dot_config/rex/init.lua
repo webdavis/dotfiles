@@ -1,4 +1,5 @@
 rex.bind("ctrl+d>ctrl+d", "pane.send_key", { key = "ctrl+d" })
+rex.bind("ctrl+d>ctrl+l", "pane.send_key", { key = "ctrl+l" })
 
 rex.bind("ctrl+d>1", "client.tab.goto", { index = 1 })
 rex.bind("ctrl+d>2", "client.tab.goto", { index = 2 })
