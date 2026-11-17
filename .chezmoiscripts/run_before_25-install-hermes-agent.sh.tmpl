@@ -1,0 +1,71 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly hermes_installer_url="https://hermes-agent.nousresearch.com/install.sh"
+readonly hermes_branch=main
+readonly -a shell_startup_files=("$HOME/.bashrc" "$HOME/.profile" "$HOME/.bash_profile")
+
+# A launcher can outlive the install it points at, so being on PATH is not enough.
+hermes_runs() {
+  hermes --version >/dev/null 2>&1
+}
+
+install_hermes_at_the_latest_commit() {
+  curl -fsSL "$hermes_installer_url" |
+    bash -s -- --branch "$hermes_branch" --skip-setup
+}
+
+keep_a_copy_of_each_startup_file() {
+  local copies=$1 file
+  for file in "${shell_startup_files[@]}"; do
+    if [[ -f $file ]]; then
+      cp -p "$file" "$copies/$(basename "$file")"
+    fi
+  done
+}
+
+put_each_startup_file_back() {
+  local copies=$1 file copy
+  for file in "${shell_startup_files[@]}"; do
+    copy="$copies/$(basename "$file")"
+    if [[ ! -f $copy ]]; then
+      if [[ -e $file ]]; then
+        trash "$file"
+      fi
+    elif ! cmp -s "$copy" "$file"; then
+      cp -p "$copy" "$file"
+    fi
+  done
+}
+
+# The installer appends a PATH line to the shell startup files, which already put ~/.local/bin on PATH.
+install_hermes_and_leave_the_startup_files_alone() {
+  local copies status=0
+  copies="$(mktemp -d)"
+  keep_a_copy_of_each_startup_file "$copies"
+  install_hermes_at_the_latest_commit || status=$?
+  put_each_startup_file_back "$copies"
+  trash "$copies"
+  return "$status"
+}
+
+main() {
+  if hermes_runs; then
+    return
+  fi
+
+  report_section 'hermes' 'Nous Research agent'
+  report_line "installing the latest commit of the $hermes_branch branch..."
+  if ! install_hermes_and_leave_the_startup_files_alone || ! hermes_runs; then
+    report_line "error[install-failed]: the hermes installer did not leave a working hermes; the next apply retries." >&2
+    return
+  fi
+  report_line "installed hermes-agent."
+}
+
+main "$@"
+{{ end -}}
