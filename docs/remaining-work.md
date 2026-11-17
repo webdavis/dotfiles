@@ -53,11 +53,11 @@ dropped the `pns-recap` route so recaps post to the default route; and #629 adde
 [PR #832](https://github.com/webdavis/dotfiles/pull/832), merged `d35b29ff5`, changed morning's section-heading color
 from violet to steel blue at the operator's request. On 2026-09-20 the operator ruled that `webdavis/damnit` is
 pre-1.0.0 and PR #1 merges only once it meets the clean-code standard and leaks no secret; three review registers found
-12 SEV-1, 34 SEV-2 and 33 SEV-3, all being fixed on the branch; the client specs are open as todoist.nvim PR #15
-(`damnit.nvim`) and herdr-todoist PR #16 (`herdr-damnit`). On 2026-09-20 the fugitive mappings in the Neovim config
-moved to `:Git!` for fetch, pull, push and the no-edit amend ([PR #864](https://github.com/webdavis/dotfiles/pull/864),
-merged `55dd58091`), so a push no longer freezes the editor for the length of the pre-push lint-check. damnit PR #1
-passed its round 6 and 7 re-review with all 79 findings fixed and a clean secrets sweep and is merging.
+12 SEV-1, 34 SEV-2 and 33 SEV-3, all being fixed on the branch; the client spec is open as todoist.nvim PR #15
+(`damnit.nvim`). On 2026-09-20 the fugitive mappings in the Neovim config moved to `:Git!` for fetch, pull, push and the
+no-edit amend ([PR #864](https://github.com/webdavis/dotfiles/pull/864), merged `55dd58091`), so a push no longer
+freezes the editor for the length of the pre-push lint-check. damnit PR #1 passed its round 6 and 7 re-review with all
+79 findings fixed and a clean secrets sweep and is merging.
 
 On 2026-09-20 the two fixes left open since 2026-09-19 merged: [PR #789](https://github.com/webdavis/dotfiles/pull/789)
 `82c3bff2e` (the doctor's certificate row named as the Hue bridge certificate) and
@@ -68,11 +68,10 @@ read). dam's config target landed as [PR #870](https://github.com/webdavis/dotfi
 non-interactive pattern herdr-todoist already used, with KeePassXC staying the entry of record; verified against dam's
 own config parser and a live `dam remote list` run against an isolated config directory, the file parses, names the
 remote, and makes no network call. damnit PR #1 merged on 2026-09-20 (`c2eb89d`) after seven fix rounds, all 79 review
-findings closed and a clean secrets sweep. The two client specs merged with every open decision settled on its
-recommendation (damnit.nvim spec, webdavis/damnit.nvim PR #15 `ac5f627`; herdr-damnit spec, webdavis/herdr-damnit PR #16
-`1b85e59`), and both repositories were renamed in place on GitHub and on disk (todoist.nvim to damnit.nvim,
-herdr-todoist to herdr-damnit), with the implementation plans being written. The dotfiles references to the old names
-(the nvim plugin spec, the herdr plugin config leaf and the roster entry) move when each plugin's rename PR lands.
+findings closed and a clean secrets sweep. The damnit.nvim client spec merged with every open decision settled on its
+recommendation (webdavis/damnit.nvim PR #15 `ac5f627`), and the repository was renamed in place on GitHub and on disk
+(todoist.nvim to damnit.nvim), with the implementation plan being written. The dotfiles references to the old name (the
+nvim plugin spec and the roster entry) move when the plugin's rename PR lands.
 [PR #873](https://github.com/webdavis/dotfiles/pull/873) (b01ba1c26) extended the shared agent rules partial so GitHub
 is reached through gh-axi only, never through curl or another client, even when gh-axi itself cannot reach GitHub; when
 it cannot, an agent pushes the branch, writes the PR body to a file, says so, and stops. This closes the gap exposed on
@@ -80,12 +79,12 @@ it cannot, an agent pushes the branch, writes the PR body to a file, says so, an
 agents worked around it with curl. On 2026-09-20 the operator withdrew task 135, Attest, because dam covers it. damnit
 PR #2 merged (c2565c1) with the client verbs `dam edit --undone`, `dam restore <oid>` and the `dam done --force`
 children and depends dispositions; damnit issue #3 records a pre-existing `dam add -A` exit 4 after a committed delete.
-The two implementation plans merged (damnit.nvim 36 tasks, herdr-damnit 42 tasks) and each plan's tasks 1 to 3, the
-in-place rename, are in review (done: merged as damnit.nvim PR #17 and herdr-damnit PR #18). dam's client contract was
-settled on 2026-09-20 for the third damnit pull request: under `--json` the error document is the only thing on stderr,
-every rule dam refuses exits 4 and names its rule, change documents carry a fields list, and `status --json` answers
-rows without embedded objects unless `--full` is given; the two client specs still say exit 2 for a refusal and each
-gets one amendment once that pull request merges (done: both specs now say exit 4 for every refusal).
+The damnit.nvim implementation plan merged (36 tasks) and its tasks 1 to 3, the in-place rename, are in review (done:
+merged as damnit.nvim PR #17). dam's client contract was settled on 2026-09-20 for the third damnit pull request: under
+`--json` the error document is the only thing on stderr, every rule dam refuses exits 4 and names its rule, change
+documents carry a fields list, and `status --json` answers rows without embedded objects unless `--full` is given; the
+two client specs still say exit 2 for a refusal and each gets one amendment once that pull request merges (done: both
+specs now say exit 4 for every refusal).
 
 ### Resume order and completion rules
 
