@@ -83,6 +83,7 @@ plugins:
             - "ffgrep"
             - "fff-multi-grep"
         - package: "omp-cache-meter"
+        - package: "@jetserge/pi-contextual-stash"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:
