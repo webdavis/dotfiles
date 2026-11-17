@@ -1,5 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{ if .packages.macos.cargo -}}
+{{ if .packages.macos.cargo.registry -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -11,8 +11,8 @@ readonly install_time_limit=10m
 readonly exit_status_hung=124
 
 readonly declared_crates=(
-{{- range .packages.macos.cargo }}
-  {{ .name | quote }}
+{{- range .packages.macos.cargo.registry }}
+  {{ . | quote }}
 {{- end }}
 )
 
