@@ -37,7 +37,7 @@ Agent instructions belong in this file alone.
 ### Marketplace or Hermes plugin or skill
 
 - Install, in `.chezmoidata/agent-plugins.yaml` under its harness:
-  - Claude Code, Codex or omp: its marketplace and its `<plugin>@<marketplace>` id. An omp plugin is also listed for Claude Code.
+  - Claude Code, Codex or omp: its marketplace and its `<plugin>@<marketplace>` id. An omp plugin goes under `omp.plugins` and is also listed for Claude Code.
   - Hermes: its catalog name.
 - Remove:
   1. Remove its id, and its marketplace when no plugin of it remains.
@@ -51,7 +51,7 @@ Agent instructions belong in this file alone.
 
 ### omp extension from npm
 
-- Install: an entry under `omp_npm` in `.chezmoidata/agent-plugins.yaml`, with its npm name as `package` and the tools that run unasked in its `allow` list.
+- Install: an entry under `omp.extensions` in `.chezmoidata/agent-plugins.yaml`, with its npm name as `package` and the tools that run unasked in its `allow` list.
 - Remove:
   1. Remove its entry.
   2. `omp plugin uninstall <package>`.

@@ -82,7 +82,7 @@
 {{- /* A Claude usage limit moves the session to Codex until the limit clears. */ -}}
 {{-   $merged = setValueAtPath (list "retry" "fallbackChains") (dict "anthropic/*" (list "openai-codex/gpt-6.1-sol")) $merged -}}
 {{- /* omp asks before each call to an extension's tool, so each tool on an extension's allow list gets a rule that lets it run. */ -}}
-{{-   range .plugins.harnesses.omp_npm -}}
+{{-   range .plugins.harnesses.omp.extensions -}}
 {{-     range get . "allow" | default list -}}
 {{-       $merged = setValueAtPath (list "tools" "approval" .) "allow" $merged -}}
 {{-     end -}}
