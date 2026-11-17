@@ -137,24 +137,6 @@ unsuccessful_runs_before_alert = 3
 platforms = ["claude"]
 config_dir = "{{ .chezmoi.homeDir }}/.local/share/graphify/claude"
 
-[lane.herdr]
-builtin = "herdr"
-env = {}
-scheduled = true
-time_limit = "6 hours"
-unsuccessful_runs_before_alert = 3
-
-[lane.herdr.settings]
-
-[lane.herdr-plugins]
-builtin = "herdr-plugins"
-env = {}
-scheduled = true
-time_limit = "6 hours"
-unsuccessful_runs_before_alert = 3
-
-[lane.herdr-plugins.settings]
-
 [lane.hermes-plugins]
 builtin = "hermes-plugins"
 env = {}

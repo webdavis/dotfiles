@@ -42,7 +42,7 @@ Overwritten from the template on every apply, whatever the live file holds.
     `Read(~/.hermes/profiles/*/config.yaml)` covers exactly the profile-directory level. And a path holding literal
     spaces needs no quoting or escaping, which is what makes the two `~/Library/Application Support/...` rules legal as
     written; only the gitignore metacharacters are special, and that page states parentheses need no escaping either.
-- `hooks`, 14 event keys:
+- `hooks`, 13 event keys:
   - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
   - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in the same pass,
     where a second hook used to decide the tier on its own.
@@ -90,10 +90,6 @@ Overwritten from the template on every apply, whatever the live file holds.
     no business answering one.
   - `SubagentStop` runs `pns hook resolved` async, ending a wait a subagent was holding at the subagent's own end rather
     than at the parent session's Stop.
-  - `SessionStart` is herdr's own agent-state integration, and ownership is split. `herdr integration install claude`
-    creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`, which is deliberately unmanaged, and writes this
-    ENTRY the first time. The template then redeclares the same entry, because the `hooks` write is whole-value and
-    would otherwise erase it.
 - `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to `user-invocable-only`, transcribed
   BY HAND from the tiers table in `dot_agents/custom-skill-lock.json`. Nothing enforces that the two agree: the roster
   guard was declaration-consistency checking and went with the 2026-08-05 test-scope ruling. Per key, so overrides the

@@ -51,7 +51,7 @@ packages:
         - brightness
         - btop
         - can1357/tap/omp
-        # The tab-smart-rename herdr plugin runs on Bun.
+        # The omp config hashes long MCP tool names with Bun.
         - oven-sh/bun/bun
         - ca-certificates
         - carapace
@@ -296,22 +296,6 @@ packages:
           # Pinned because it makes commits on its own and is not yet stable.
           - "gnhf@0.1.49"
           - hyperframes
-
-  herdr_plugins:
-    - id: herdr-smart-nav
-      repo: webdavis/herdr-smart-nav
-    - id: worktrunk
-      repo: devashish2203/herdr-worktrunk
-    - id: tab-smart-rename
-      repo: iurysza/herdr-tab-smart-rename
-    - id: persiyanov.reviewr
-      repo: persiyanov/herdr-reviewr
-    - id: annotate
-      repo: plannotator/herdr-annotate
-    - id: furkankly.zoetrope
-      repo: furkankly/zoetrope/herdr-plugin
-    - id: clauth
-      repo: uwuclxdy/clauth/herdr-plugin
 
   # Tools built from a local clone. Both paths are relative to the home folder.
   source_builds:

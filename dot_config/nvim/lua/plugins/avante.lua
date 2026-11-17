@@ -1,7 +1,7 @@
 -- Uses the `claude` CLI's own login through the ACP provider, so no API key is needed.
 -- `build = "make"` needs `cargo` on PATH.
 -- `auto_set_keymaps = false` leaves `keys` as the only global mappings.
--- They sit on `<leader>v`, because `<leader>a` belongs to herdr.
+-- They sit on `<leader>v`.
 return {
   "avante-corp/avante.nvim",
   build = "make",

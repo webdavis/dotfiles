@@ -1,5 +1,0 @@
-# Reviews the whole branch against main, because that is the diff that matters in a worktree.
-default_scope = "branch"
-# Opens reviewr only by hand, because new worktrees are created often.
-auto_open = false
-editor = "nvim +{line} {file}"

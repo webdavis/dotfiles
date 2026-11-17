@@ -1,10 +1,7 @@
--- Ctrl-h/j/k/l move across Neovim splits and herdr panes. At a split edge, the herdr backend in
--- lua/smart-splits/mux/herdr.lua runs `herdr pane focus`.
 return {
   "mrjones2014/smart-splits.nvim",
   lazy = false,
   opts = {
-    multiplexer_integration = "herdr",
     at_edge = "stop",
     disable_multiplexer_nav_when_zoomed = true,
   },

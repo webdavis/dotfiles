@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
-# Loads ~/.bashrc in interactive shells only, because herdr runs every keybinding in a login shell
-# and the full ~/.bashrc is too slow to load on each keypress.
+# Loads ~/.bashrc in interactive shells only, because the full ~/.bashrc is too slow for a login
+# shell that runs a single command.
 [[ -n $BASH_VERSION && $- == *i* && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
 
 export XDG_CONFIG_HOME="${HOME}/.config"
