@@ -72,7 +72,7 @@ end
 
 return {
   "stevearc/overseer.nvim",
-  dependencies = { "webdavis/pns" },
+  dependencies = { "pns" },
   opts = {},
   -- Every command overseer and `config` define, so any of them loads the plugin.
   -- `OverseerShell` gets its own loader below.
@@ -257,25 +257,27 @@ return {
       component_aliases = {
         -- Leaves out on_complete_dispose, because OverseerRestartLast, the openers and the bundle
         -- commands need finished tasks. The "dispose all finished" action clears them by hand.
-        default = {
-          "on_exit_set_status",
-          "pns.report",
-          { "on_complete_notify", system = "unfocused" },
+        default = vim.list_extend(
+          require("custom_api.paired_plugin").is_present("pns") and { "on_exit_set_status", "pns.report" }
+            or { "on_exit_set_status" },
           {
-            "on_output_quickfix",
-            -- Keeps only lines that parse as a location instead of replacing the quickfix with all output.
-            items_only = true,
-            set_diagnostics = true,
-            open_on_match = true,
-          },
-          -- Fires only when the errorformat matched, so a clean run leaves no diagnostics.
-          { "on_result_diagnostics", remove_on_restart = true },
-          -- Stamps each task's start order, which the live output view sorts by.
-          "user.start_sequence",
-          -- `on_start = "always"`, because its default never fires when on_output_quickfix is present.
-          -- A horizontal split, because a docked window needs the task list open.
-          { "open_output", on_start = "always", direction = "horizontal", focus = false },
-        },
+            { "on_complete_notify", system = "unfocused" },
+            {
+              "on_output_quickfix",
+              -- Keeps only lines that parse as a location instead of replacing the quickfix with all output.
+              items_only = true,
+              set_diagnostics = true,
+              open_on_match = true,
+            },
+            -- Fires only when the errorformat matched, so a clean run leaves no diagnostics.
+            { "on_result_diagnostics", remove_on_restart = true },
+            -- Stamps each task's start order, which the live output view sorts by.
+            "user.start_sequence",
+            -- `on_start = "always"`, because its default never fires when on_output_quickfix is present.
+            -- A horizontal split, because a docked window needs the task list open.
+            { "open_output", on_start = "always", direction = "horizontal", focus = false },
+          }
+        ),
         -- Tasks read out of a .vscode/tasks.json.
         default_vscode = {
           "default",

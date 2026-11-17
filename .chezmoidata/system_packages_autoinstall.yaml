@@ -259,12 +259,14 @@ packages:
           packages:
             - pns
           features: dev-tools
+          nvim_plugin: true
         - repo: webdavis/posture
           packages:
             - posture
         - repo: webdavis/pwe
           packages:
             - pwe
+          nvim_plugin: true
         - repo: webdavis/uu
           packages:
             - uu

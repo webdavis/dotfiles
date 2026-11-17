@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly live_lock="$HOME/.config/nvim/lazy-lock.json"
+readonly repo_lock={{ joinPath .chezmoi.sourceDir "dot_config/nvim/lock/lazy-lock.json" | quote }}
+readonly backups="$HOME/workspaces/backups"
+
+lock_is_a_copy() {
+  [[ -f $live_lock && ! -L $live_lock ]]
+}
+
+# Neovim reads its lock file through a link into this repo. chezmoi stops and asks before it replaces a copy that
+# changed since it wrote it, so the copy is set aside and the link made before chezmoi looks.
+main() {
+  local backup
+  if ! lock_is_a_copy; then
+    return
+  fi
+  backup="$backups/lazy-lock.$(date +%Y-%m-%dT%H%M%S).json"
+  mkdir -p "$backups"
+  mv "$live_lock" "$backup"
+  ln -s "$repo_lock" "$live_lock"
+  report_section 'nvim' 'lock file'
+  report_line "moved the copied lock file to $backup; Neovim now uses the one in this repo."
+}
+
+main
