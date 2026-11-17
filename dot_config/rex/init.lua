@@ -1,5 +1,4 @@
 rex.bind("ctrl+d>ctrl+d", "pane.send_key", { key = "ctrl+d" })
-rex.bind("ctrl+d>ctrl+l", "pane.send_key", { key = "ctrl+l" })
 
 rex.bind("ctrl+d>1", "client.tab.goto", { index = 1 })
 rex.bind("ctrl+d>2", "client.tab.goto", { index = 2 })
@@ -50,7 +49,7 @@ rex.bind("cmd+m", "pane.minimize_floating")
 
 local pwe_loaded, pwe = pcall(require, "pwe")
 if pwe_loaded then
-  pwe.setup()
+  pwe.setup({ send_after = "ctrl+d" })
 else
   print("pwe: its pane keys were not loaded: " .. tostring(pwe))
 end
