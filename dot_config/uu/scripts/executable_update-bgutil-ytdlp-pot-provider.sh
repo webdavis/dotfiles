@@ -6,6 +6,7 @@ readonly exit_deferred=75
 readonly exit_failure=1
 readonly provider_checkout="$HOME/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
 readonly provider_server_dir="$provider_checkout/server"
+readonly node_binary="$HOME/.local/share/fnm/aliases/default/bin/node"
 readonly latest_release_api_url="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
 readonly plugin_download_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
 readonly installed_plugin_zip="$HOME/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
@@ -35,7 +36,11 @@ check_out_release() {
 }
 
 build_server() {
-  (cd "$provider_server_dir" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
+  (
+    cd "$provider_server_dir" &&
+      deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen &&
+      "$node_binary" node_modules/typescript/bin/tsc
+  )
 }
 
 download_to_file() {

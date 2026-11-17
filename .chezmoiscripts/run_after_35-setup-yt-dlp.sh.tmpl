@@ -11,6 +11,8 @@ readonly bgutil_repository="$HOME/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
 readonly bgutil_repository_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git"
 readonly bgutil_latest_release_api_url="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
 readonly bgutil_server="$bgutil_repository/server"
+readonly bgutil_server_entry_point="$bgutil_server/build/main.js"
+readonly node_binary="$HOME/.local/share/fnm/aliases/default/bin/node"
 readonly npm_packages_allowed_to_run_build_scripts="npm:canvas,npm:@swc/core"
 readonly bgutil_plugin_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
 readonly bgutil_plugin_zip="$HOME/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
@@ -77,7 +79,7 @@ install_nightly_ytdlp() {
 }
 
 bgutil_server_is_built() {
-  [[ -d $bgutil_server/node_modules ]]
+  [[ -f $bgutil_server_entry_point ]]
 }
 
 fetch_latest_bgutil_release_tag() {
@@ -100,7 +102,11 @@ clone_bgutil_repository() {
 }
 
 build_bgutil_server() {
-  (cd "$bgutil_server" && deno install --allow-scripts="$npm_packages_allowed_to_run_build_scripts" --frozen)
+  (
+    cd "$bgutil_server" &&
+      deno install --allow-scripts="$npm_packages_allowed_to_run_build_scripts" --frozen &&
+      "$node_binary" node_modules/typescript/bin/tsc
+  )
 }
 
 install_bgutil_server() {
