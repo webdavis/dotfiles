@@ -242,6 +242,11 @@
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
 {{- /* --- stable: hooks (paths use $home for portability) ---
+     SessionStart tells the agent which Rex session and pane it runs in. It is
+     the entry `rex skill setup` writes, so `rex skill status` reports it as
+     current; it is declared here because the hooks write is whole-value and
+     would otherwise erase it.
+
      The blocked notification hangs off PermissionRequest, NOT off
      Notification/permission_prompt, and it is deliberately NOT async. Both
      halves are load bearing. PermissionRequest runs BEFORE the prompt is
@@ -451,7 +456,12 @@
     "SessionEnd" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s hook session-end" $pns))))) -}}
+        "command" (printf "%s hook session-end" $pns)))))
+    "SessionStart" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "command" "/bin/sh -c 'rex __internal session-start --agent claude --feature-session-naming=false 2>/dev/null || true'"
+        "timeout" 5)))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- $statusLine := dict
