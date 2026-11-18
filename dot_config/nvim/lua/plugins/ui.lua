@@ -51,7 +51,6 @@ return {
         neotest = true,
         neotree = true,
         nvim_surround = true,
-        octo = true,
         overseer = true,
         notify = true,
         snacks = { enabled = true, indent_scope_color = "lavender" },
