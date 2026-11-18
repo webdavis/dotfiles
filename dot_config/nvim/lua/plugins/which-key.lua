@@ -44,7 +44,7 @@ return {
         { "<leader>l", group = "LSP" },
         { "<leader>n", group = "messages" },
         { "<leader>o", group = "overseer" },
-        { "<leader>r", group = "rename／find-and-replace" },
+        { "<leader>r", group = "rename" },
         { "<leader>R", group = "rest (kulala)" },
         { "<leader>s", group = "search" },
         { "<leader>t", group = "test" },

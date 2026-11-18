@@ -36,7 +36,6 @@ return {
         flash = true,
         fzf = true,
         gitsigns = true,
-        grug_far = true,
         harpoon = true,
         headlines = true,
         illuminate = { enabled = true, lsp = false },

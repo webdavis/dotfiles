@@ -478,8 +478,7 @@ return {
     -- These take a plain line range and no `-bar`, just like a lazy.nvim placeholder,
     -- so they complete before fugitive loads.
     cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog" },
-    -- `Gr` forwards to `Gread` with fugitive's own declaration. A placeholder would swallow `| cmd`,
-    -- and `CmdUndefined` never fires because `:Gr` abbreviates to grug-far's `GrugFar`.
+    -- `Gr` forwards to `Gread` with fugitive's own declaration. A placeholder would swallow `| cmd`.
     init = function()
       vim.api.nvim_create_user_command("Gr", function(event)
         require("lazy").load({ plugins = { "vim-fugitive" } })

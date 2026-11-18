@@ -45,3 +45,6 @@
 
 # The Karabiner rule files only repeated or left unused what karabiner.json holds.
 .config/karabiner/assets
+
+# grug-far.nvim is gone.
+.config/nvim/lua/plugins/grug-far.lua
