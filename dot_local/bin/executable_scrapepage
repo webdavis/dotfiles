@@ -76,10 +76,8 @@ tab_control_address() {
 send_and_read_reply() {
   local control_address="$1"
   local message="$2"
-  local one_message='--one-message'
-  local keep_open_for_the_reply='--no-close'
   local largest_reply_bytes=16000000
-  websocat "$one_message" "$keep_open_for_the_reply" --buffer-size "$largest_reply_bytes" "$control_address" <<<"$message"
+  websocat --one-message --no-close --buffer-size "$largest_reply_bytes" "$control_address" <<<"$message"
 }
 
 devtools_request() {
