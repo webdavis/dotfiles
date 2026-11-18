@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DIA_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
+BROWSER_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
 DEBUG_PORT_TIMEOUT_SECONDS=2
 RENDER_TIMEOUT_SECONDS=20
 OPENED_TAB_ID=""
@@ -11,7 +11,7 @@ usage() {
   cat <<USAGE
 Usage: scrapepage [options] <url>
 
-Print the text of the Dia tab at <url>. A page with no tab is opened in a
+Print the text of the browser tab at <url>. A page with no tab is opened in a
 background tab, read once it has rendered, and closed.
 
 Options:
@@ -23,12 +23,12 @@ Options:
   -h, --help         Show this help.
 
 Environment:
-  CHROME_DEVTOOLS_AXI_BROWSER_URL  Dia's debugging port, ${DIA_DEBUG_URL} by default.
+  CHROME_DEVTOOLS_AXI_BROWSER_URL  The browser's debugging port, ${BROWSER_DEBUG_URL} by default.
 
 Exit codes:
   0  The text was printed or copied.
-  1  Bad arguments, more than one matching tab, or Dia did not open the page.
-  2  Dia is not listening on its debugging port.
+  1  Bad arguments, more than one matching tab, or the browser did not open the page.
+  2  No browser is listening on the debugging port.
   3  The page shows a sign-in form.
   4  The page did not render within ${RENDER_TIMEOUT_SECONDS} seconds.
 USAGE
@@ -48,7 +48,7 @@ fail() {
 
 debug_port_get() {
   local path="$1"
-  curl -sf --max-time "$DEBUG_PORT_TIMEOUT_SECONDS" "${DIA_DEBUG_URL}${path}"
+  curl -sf --max-time "$DEBUG_PORT_TIMEOUT_SECONDS" "${BROWSER_DEBUG_URL}${path}"
 }
 
 browser_info() {
@@ -56,9 +56,9 @@ browser_info() {
   debug_port_get "$browser_info_endpoint"
 }
 
-require_dia() {
+require_browser() {
   browser_info >/dev/null ||
-    fail "Dia is not listening at ${DIA_DEBUG_URL}. Start Dia with --remote-debugging-port set to that port." 2
+    fail "No browser is listening at ${BROWSER_DEBUG_URL}. Start yours with --remote-debugging-port set to that port." 2
 }
 
 browser_control_address() {
@@ -68,7 +68,7 @@ browser_control_address() {
 
 tab_control_address() {
   local tab_id="$1"
-  local websocket_base="${DIA_DEBUG_URL/http/ws}"
+  local websocket_base="${BROWSER_DEBUG_URL/http/ws}"
   local tab_control_path='/devtools/page/'
   echo "${websocket_base}${tab_control_path}${tab_id}"
 }
@@ -144,7 +144,7 @@ require_at_most_one_tab() {
   local tabs="$1"
   local url="$2"
   [[ $(tab_count "$tabs") -le 1 ]] ||
-    fail "more than one Dia tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
+    fail "more than one tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
 }
 
 first_tab_id() {
@@ -176,7 +176,7 @@ open_background_tab() {
 require_opened_tab() {
   local tab_id="$1"
   local url="$2"
-  [[ -n $tab_id ]] || fail "Dia did not open ${url}."
+  [[ -n $tab_id ]] || fail "The browser did not open ${url}."
 }
 
 close_tab() {
@@ -262,7 +262,7 @@ require_no_sign_in_form() {
   local url="$2"
   local opened_url="$3"
   ! has_sign_in_form "$tab_id" "$opened_url" ||
-    fail "${url} shows a sign-in form. Sign in to it in Dia, then run scrapepage again." 3
+    fail "${url} shows a sign-in form. Sign in to it in the browser, then run scrapepage again." 3
 }
 
 page_text() {
@@ -344,7 +344,7 @@ open_page_in_new_tab() {
 main() {
   local copy=0 wait_for='' url
   parse_args copy wait_for url "$@"
-  require_dia
+  require_browser
   close_opened_tab_on_exit
 
   local tabs matches tab_id opened_url=''
