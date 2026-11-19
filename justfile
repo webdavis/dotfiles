@@ -22,6 +22,10 @@ lint-gate:
 lint-actions-security:
   zizmor --offline .github/workflows
 
+# Scan every commit reachable from any ref for plaintext secrets.
+lint-secrets:
+  gitleaks git --no-banner --redact --config .gitleaks.toml .
+
 # Renders templates, so KeePassXC must be unlocked.
 diff:
   chezmoi diff
@@ -51,11 +55,12 @@ test-omp-extensions:
 # Run all test suites.
 test: test-nvim test-nvim-lock test-bindings test-espanso-url-menu test-omp-extensions
 
-# Run the three CI gates locally before opening a pull request.
+# Run the CI gates locally before opening a pull request.
 ship:
   just lint-gate
   just test
   just lint-actions-security
+  just lint-secrets
 
 # Install the contributor toolchain.
 setup:

@@ -13,9 +13,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Install the lint and test toolchain (Homebrew + uv, no nix)
         run: |
-          brew install actionlint age bash chezmoi coreutils emmylua_ls fzf jq just luacheck neovim oven-sh/bun/bun python ripgrep ruff shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          brew install actionlint age bash chezmoi coreutils emmylua_ls fzf gitleaks jq just luacheck neovim oven-sh/bun/bun python ripgrep ruff shellcheck shfmt stylua taplo treefmt uv yq zizmor
           echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
           uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
       # `just test-bindings` runs `chord check` on the generated binding files.
@@ -27,3 +28,5 @@ jobs:
         run: just test
       - name: Audit GitHub Actions workflows (zizmor)
         run: just lint-actions-security
+      - name: Scan the full history for secrets (gitleaks)
+        run: just lint-secrets
