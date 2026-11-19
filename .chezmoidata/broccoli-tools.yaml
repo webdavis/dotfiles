@@ -546,6 +546,7 @@ broccoli:
           - clerk/stable
           - supabase/tap
           - schpet/tap
+          - pylon-labs/tap
         trusted_taps:
           - redpanda-data/tap
           - svix/svix
@@ -556,6 +557,7 @@ broccoli:
           - clerk/stable
           - supabase/tap
           - schpet/tap
+          - pylon-labs/tap
         formulae:
           - temporal
           - infisical
@@ -574,6 +576,7 @@ broccoli:
           - supabase/tap/supabase
           - livekit-cli
           - schpet/tap/linear
+          - pylon-labs/tap/pylon
         casks:
           - claude-code@latest
           - devin-cli
