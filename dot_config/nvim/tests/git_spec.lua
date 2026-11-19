@@ -87,7 +87,7 @@ end
 
 local function latest_commit(replies)
   return with_shell(replies, function()
-    return git.latest_commit({ repo_name = "dotfiles" })
+    return git.latest_commit()
   end)
 end
 
@@ -212,7 +212,7 @@ return {
     local commit, err = latest_commit({ ["git rev-parse --short HEAD"] = { 128, "" } })
     assert(commit == nil, "returned a commit anyway")
     assert(type(err) == "string", "err was a " .. type(err))
-    assert(err:find("dotfiles", 1, true), "the message does not name the repository: " .. err)
+    assert(err:find("no commits", 1, true), "the message does not say why: " .. err)
   end,
 
   ["latest_commit still carries the hash of a commit with no message"] = function()
@@ -224,12 +224,6 @@ return {
     assert(commit.hash == "abc1234", "hash was " .. tostring(commit.hash))
     assert(commit.summary == nil, "summary was " .. tostring(commit.summary))
     assert(err:find("abc1234", 1, true), "the message does not name the commit: " .. err)
-  end,
-
-  ["latest_commit names the argument it actually wants"] = function()
-    local ok, err = pcall(git.latest_commit, {})
-    assert(not ok, "accepted a call with no repo_name")
-    assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
   end,
 
   ["default_branch names main when origin/main is present"] = function()
@@ -259,27 +253,35 @@ return {
     local remote_url = with_shell({
       ["git config --get remote.upstream.url"] = { 0, "git@github.com:webdavis/dotfiles.git" },
     }, function()
-      return git.url({ remote = "upstream", account_name = "webdavis", repo_name = "dotfiles" })
+      return git.url({ remote = "upstream" })
     end)
 
     assert(remote_url == "git@github.com:webdavis/dotfiles.git", "got " .. tostring(remote_url))
   end,
 
-  ["url names its missing repo_name too"] = function()
-    local ok, err = pcall(git.url, { remote = "origin", account_name = "webdavis" })
-    assert(not ok, "accepted a call with no repo_name")
-    assert(err:find("repo_name", 1, true), "the message does not name repo_name: " .. err)
+  ["get_repo_name_from_origin_address reads the name off an SSH address"] = function()
+    local name = with_shell({
+      ["git config --get remote.origin.url"] = { 0, "git@github.com:webdavis/dotfiles.git" },
+    }, git.get_repo_name_from_origin_address)
+    assert(name == "dotfiles", "got " .. tostring(name))
+  end,
+
+  ["get_repo_name_from_origin_address reads the name off an HTTPS address with no .git ending"] = function()
+    local name = with_shell({
+      ["git config --get remote.origin.url"] = { 0, "https://github.com/webdavis/pantry.nvim" },
+    }, git.get_repo_name_from_origin_address)
+    assert(name == "pantry.nvim", "got " .. tostring(name))
+  end,
+
+  ["get_repo_name_from_origin_address is nil in a repository with no origin"] = function()
+    local name =
+      with_shell({ ["git config --get remote.origin.url"] = { 1, "" } }, git.get_repo_name_from_origin_address)
+    assert(name == nil, "got " .. tostring(name))
   end,
 
   ["copy_URL_to_clipboard is spelled copy_url_to_clipboard"] = function()
     assert(git.copy_URL_to_clipboard == nil, "the old spelling is still " .. type(git.copy_URL_to_clipboard))
     assert(type(git.copy_url_to_clipboard) == "function", "copy_url_to_clipboard is missing")
-  end,
-
-  ["url names the argument it actually wants"] = function()
-    local ok, err = pcall(git.url, { remote = "origin", repo_name = "dotfiles" })
-    assert(not ok, "accepted a call with no account_name")
-    assert(err:find("account_name", 1, true), "the message does not name account_name: " .. err)
   end,
 
   -- Only the first token is the SHA. The second is a line number that can look like a short hash.

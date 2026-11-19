@@ -17,44 +17,12 @@ local function account_or_notify()
   end, { label = "github.account" })
 end
 
--- `git.latest_commit` raises on a missing `repo_name`, so a nameless answer is handled here once.
-local function repo_name_or_notify()
-  local repository = try(function()
-    return github.repo()
-  end, { label = "github.repo" })
-  if not repository then
-    return
-  end
-
-  if not repository.name then
-    local message = ("No repository name in the answer `gh` gave: *%s*"):format(repository.nameWithOwner)
-    vim.notify(message, log_warning, notify_github_title)
-    return
-  end
-
-  return repository.name
-end
-
 local function copy_url_mapping_helper(lhs, remote, protocol)
   local mapping_table = {
     lhs,
     function()
       if git.initialized() then
-        local account = account_or_notify()
-        if not account then
-          return
-        end
-
-        local repo_name = repo_name_or_notify()
-        if not repo_name then
-          return
-        end
-
-        local url = git.url({
-          remote = remote,
-          account_name = account.username,
-          repo_name = repo_name,
-        })
+        local url = git.url({ remote = remote })
 
         if not url then
           vim.notify("Warning: Nothing copied to clipboard!", log_warning, { title = "git" })
@@ -586,12 +554,7 @@ return {
           return
         end
 
-        local repo_name = repo_name_or_notify()
-        if not repo_name then
-          return
-        end
-
-        local commit = git.latest_commit({ repo_name = repo_name }) or {}
+        local commit = git.latest_commit() or {}
         local sections = build_sections(branch, commit.hash, commit.summary, commit.body)
         local message = sections_to_message(sections)
 
@@ -990,10 +953,7 @@ return {
         {
           "<C-g>Cb",
           function()
-            local repo = repo_name_or_notify()
-            if not repo then
-              return
-            end
+            local repo = git.get_repo_name_from_origin_address() or util.get_cwd_basename()
 
             local branch = git.current_branch()
 
@@ -1079,12 +1039,7 @@ return {
         {
           "<C-g>cp",
           function()
-            local repo_name = repo_name_or_notify()
-            if not repo_name then
-              return
-            end
-
-            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            local commit = git.latest_commit() or {}
             if not commit.summary then
               return
             end
@@ -1099,12 +1054,7 @@ return {
         {
           "<C-g>cA",
           function()
-            local repo_name = repo_name_or_notify()
-            if not repo_name then
-              return
-            end
-
-            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            local commit = git.latest_commit() or {}
             if not commit.hash then
               return nil
             end
@@ -1299,12 +1249,7 @@ return {
         {
           "<C-g>dhw",
           function()
-            local repo_name = repo_name_or_notify()
-            if not repo_name then
-              return
-            end
-
-            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            local commit = git.latest_commit() or {}
             if not commit.hash then
               return
             end
@@ -1317,12 +1262,7 @@ return {
         {
           "<C-g>dhm",
           function()
-            local repo_name = repo_name_or_notify()
-            if not repo_name then
-              return
-            end
-
-            local commit = git.latest_commit({ repo_name = repo_name }) or {}
+            local commit = git.latest_commit() or {}
             if not commit.hash then
               return
             end
