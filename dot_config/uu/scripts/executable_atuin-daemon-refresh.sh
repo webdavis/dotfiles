@@ -25,7 +25,7 @@ daemon_process_id() {
 }
 
 daemon_version() {
-  sed -n '2p' "$daemon_record"
+  sed -n '3p' "$daemon_record" | jq -r '.version // empty'
 }
 
 daemon_is_running() {
