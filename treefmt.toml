@@ -80,15 +80,15 @@ command = "scripts/treefmt/yq-validate.sh"
 includes = [
   ".chezmoidata/*.yaml",
   ".chezmoidata/*.yml",
-  "Library/Application Support/espanso/**/*.yaml",
-  "Library/Application Support/espanso/**/*.yml",
+  "private_Library/private_Application Support/espanso/**/*.yaml",
+  "private_Library/private_Application Support/espanso/**/*.yml",
 ]
 
 [formatter.espanso-match-render]
 command = "scripts/treefmt/espanso-match-render.sh"
 includes = [
-  "Library/Application Support/espanso/**/*.yaml.tmpl",
-  "Library/Application Support/espanso/**/*.yml.tmpl",
+  "private_Library/private_Application Support/espanso/**/*.yaml.tmpl",
+  "private_Library/private_Application Support/espanso/**/*.yml.tmpl",
 ]
 
 # The script shellchecks the shell templates that render without the vault.
