@@ -183,6 +183,41 @@ return {
             },
             confirm = { "yank_msg", "close" },
           },
+          gh_issue = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<a-y>"] = { "gh_yank", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
+          gh_pr = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<a-y>"] = { "gh_yank", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
+          undo = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<c-s-y>"] = false,
+                  ["<a-y>"] = { "yank_add", mode = { "n", "i" } },
+                  ["<a-Y>"] = { "yank_del", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
           projects = {
             win = {
               input = {
