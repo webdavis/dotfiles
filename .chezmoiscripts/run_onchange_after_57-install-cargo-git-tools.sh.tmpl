@@ -36,17 +36,9 @@ cargo_tracks_the_package() {
   installed_crates_record_exists && installed_crates_record_lists_package "$repo" "$package"
 }
 
-features_are_declared() {
-  local features=$1
-  [[ -n $features ]]
-}
-
 cargo_install_from_git() {
-  local repo=$1 package=$2 features=$3
+  local repo=$1 package=$2
   local install_arguments=(--git "https://github.com/$repo" --locked)
-  if features_are_declared "$features"; then
-    install_arguments+=(--features "$features")
-  fi
   # Cargo refuses to replace a binary that it does not track or that a package of another name installed, and forcing every run would rebuild a tool that is already current.
   "$cargo_bin" install "${install_arguments[@]}" "$package" ||
     "$cargo_bin" install "${install_arguments[@]}" --force "$package"
@@ -60,8 +52,8 @@ installed_short_sha() {
 }
 
 install_latest_commit() {
-  local repo=$1 package=$2 features=$3
-  if ! cargo_install_from_git "$repo" "$package" "$features"; then
+  local repo=$1 package=$2
+  if ! cargo_install_from_git "$repo" "$package"; then
     report_line "$package: install failed; deferred to the next apply" >&2
     return 1
   fi
@@ -72,7 +64,7 @@ install_declared_tools() {
   local install_status=0
 {{- range $tool := .packages.macos.cargo.git }}
 {{- range $package := $tool.packages }}
-  install_latest_commit {{ $tool.repo | quote }} {{ $package | quote }} {{ get $tool "features" | quote }} || install_status=1
+  install_latest_commit {{ $tool.repo | quote }} {{ $package | quote }} || install_status=1
 {{- end }}
 {{- end }}
   return "$install_status"
