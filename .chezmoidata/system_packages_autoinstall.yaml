@@ -258,7 +258,6 @@ packages:
         - repo: webdavis/pns
           packages:
             - pns
-          features: dev-tools
           nvim_plugin: true
         - repo: webdavis/posture
           packages:
