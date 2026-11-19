@@ -22,6 +22,8 @@
 - Worktrees and branches:
   - Use `wt switch --create <branch>` to create a branch connected to a worktree.
   - Isolate pieces of work within their own worktree. Unrelated work should be done in separate worktrees.
+  - While a branch is unmerged, what the owner asks for about the code it changes is feedback on that branch. It goes in that branch's worktree, and the PR's title and description are updated to cover it.
+  - A new feature, or a fix to something else, is unrelated work, even in the same tool or the same conversation.
 - Commits:
   - One commit per behavior change. History reads as what changed, never as how the work went.
   - Commit a behavior change once it is done.
@@ -33,7 +35,7 @@
   - The body holds only the why and what the diff does not show. No trailers, links or sign-offs that name the tool, model or session that wrote the commit.
 - Pull Requests:
   - Opening a PR, merging it, and setting auto-merge are three separate requests. Do one only when the owner asks for it by name. A request to open a PR is not a request to merge it.
-  - Opening: one PR per piece of work. Unrelated work gets its own PR.
+  - Opening: one PR per piece of work.
   - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
   - Merging:
     1. Use `wt switch main` to move to the `main` branch checkout.
