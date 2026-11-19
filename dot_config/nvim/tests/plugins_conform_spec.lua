@@ -69,6 +69,23 @@ local function on_save(autoformat, save_kind)
   return result
 end
 
+---Whether a Markdown formatter is offered for a file, given the context conform passes it.
+---conform names its temp copy in `filename`, so only the buffer still carries the real name.
+---@param formatter string name of a formatter the Markdown row lists
+---@param path string path of the file being formatted
+local function formats(formatter, path)
+  local condition = (opts().formatters[formatter] or {}).condition
+  if condition == nil then
+    return true
+  end
+  local bufnr = scratch()
+  vim.api.nvim_buf_set_name(bufnr, path)
+  local temp_copy = vim.fs.dirname(path) .. "/.conform.1234567." .. vim.fs.basename(path)
+  local offered = condition(nil, { buf = bufnr, filename = temp_copy })
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+  return offered
+end
+
 return {
   ["every filetype the old sources formatted resolves a formatter"] = function()
     local by_ft = assert(opts().formatters_by_ft, "no formatters_by_ft")
@@ -117,6 +134,22 @@ return {
 
   ["a leave save formats"] = function()
     assert(type(on_save(true, "leave")) == "table", "did not format a leave save")
+  end,
+
+  -- Wrapping would split the one-rule-per-line files, and nothing joins the lines again.
+  ["no Markdown formatter touches a rule file"] = function()
+    for _, formatter in ipairs(opts().formatters_by_ft.markdown) do
+      for _, name in ipairs({ "AGENTS.md", "TASKS.md" }) do
+        assert(not formats(formatter, "/repo/" .. name), formatter .. " formats " .. name)
+      end
+    end
+  end,
+
+  ["every Markdown formatter still formats other Markdown files"] = function()
+    for _, formatter in ipairs(opts().formatters_by_ft.markdown) do
+      assert(formats(formatter, "/repo/README.md"), formatter .. " skips README.md")
+      assert(formats(formatter, "/repo/docs/MY_TASKS.md"), formatter .. " skips MY_TASKS.md")
+    end
   end,
 
   ["the deleted formatting workaround is gone"] = function()

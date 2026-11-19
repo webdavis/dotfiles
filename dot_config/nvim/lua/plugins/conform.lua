@@ -6,6 +6,14 @@ local log_warning = vim.log.levels.WARN
 
 local notify_format_title = { title = "Format" }
 
+-- Rule files keep one rule per line, however long. treefmt.toml leaves them unwrapped by name,
+-- and the temp copy conform formats does not carry that name.
+local rule_files = { ["AGENTS.md"] = true, ["TASKS.md"] = true }
+
+local function is_not_a_rule_file(_, context)
+  return not rule_files[vim.fs.basename(vim.api.nvim_buf_get_name(context.buf))]
+end
+
 return {
   {
     "stevearc/conform.nvim",
@@ -126,10 +134,12 @@ return {
         -- mdformat over stdin cannot find .mdformat.toml, so the wrap is passed here.
         mdformat = {
           prepend_args = { "--wrap", "120" },
+          condition = is_not_a_rule_file,
         },
         -- conform formats a uniquely named temp copy, so treefmt's cache never hits.
         treefmt = {
           prepend_args = { "--no-cache" },
+          condition = is_not_a_rule_file,
         },
       },
       -- Language-server formatting only for filetypes the table leaves out.
