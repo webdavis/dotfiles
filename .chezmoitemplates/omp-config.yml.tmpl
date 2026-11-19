@@ -91,6 +91,10 @@
 {{-       $merged = setValueAtPath (list "tools" "approval" .) "allow" $merged -}}
 {{-     end -}}
 {{-   end -}}
+{{- /* Each tool on the ask list gets a rule that asks on every call. */ -}}
+{{-   range get .plugins.harnesses.omp "ask" | default list -}}
+{{-     $merged = setValueAtPath (list "tools" "approval" .) "prompt" $merged -}}
+{{-   end -}}
 {{- end -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}

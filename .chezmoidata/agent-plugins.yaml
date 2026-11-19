@@ -2,6 +2,7 @@
 # marketplace_in_settings: false keeps a marketplace out of settings.json because its own tool manages it.
 # omp.plugins lists what omp's default profile installs into its own folders; each id is also one Claude Code installs.
 # omp.extensions lists the npm extensions of omp's default profile; a tool named under allow runs unasked.
+# omp.ask lists the tools omp's default profile asks before calling; a tool is named under allow or ask, never both.
 # hermes lists plugin catalog names.
 plugins:
   harnesses:
@@ -84,6 +85,7 @@ plugins:
             - "fff-multi-grep"
         - package: "omp-cache-meter"
         - package: "@jetserge/pi-contextual-stash"
+      ask: []
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:

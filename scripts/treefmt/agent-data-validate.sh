@@ -98,6 +98,13 @@ check_omp_plugins_are_claude_plugins() {
   done < <(plugins_json | jq -r '.omp.plugins[].plugins[]' | duplicates_in)
 }
 
+check_omp_tools_allowed_and_asked() {
+  local tool
+  while IFS= read -r tool; do
+    problem "omp tool $tool is under both allow and ask in agent-plugins.yaml; name it under one"
+  done < <(plugins_json | jq -r '.omp | ([.extensions[].allow // [] | .[]] | unique) + (.ask // [] | unique) | .[]' | duplicates_in)
+}
+
 check_duplicate_hermes_identifiers() {
   local identifier
   while IFS= read -r identifier; do
@@ -140,6 +147,7 @@ main() {
   check_duplicate_npx_entries_across_broccoli_folders
   check_duplicate_omp_broccoli_skills
   check_omp_plugins_are_claude_plugins
+  check_omp_tools_allowed_and_asked
   check_duplicate_hermes_identifiers
   check_npx_against_marketplaces
   if ((problems > 0)); then
