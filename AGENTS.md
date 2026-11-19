@@ -55,6 +55,8 @@ Agent instructions belong in this file alone.
 - Remove:
   1. Remove its entry.
   2. `omp plugin uninstall <package>`.
+- Tool that must ask first: its name under `omp.ask` in `.chezmoidata/agent-plugins.yaml`. A tool is named under `allow` or `ask`, never both.
+- Each apply rewrites the approval rules in omp's config from these lists, so a rule set by hand is dropped.
 
 ### Any other agent skill installer
 

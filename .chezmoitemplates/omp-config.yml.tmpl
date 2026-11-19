@@ -12,6 +12,8 @@
 {{- /* A Broccoli session reaches work systems, so its shell commands ask first. */ -}}
 {{- $approvalMode := ternary "write" "yolo" (eq (get . "ompProfile" | default "") "broccoli") -}}
 {{- $merged = setValueAtPath (list "tools" "approvalMode") $approvalMode $merged -}}
+{{- /* The rules start empty on every render, so a rule the repository no longer declares leaves the live file. */ -}}
+{{- $merged = setValueAtPath (list "tools" "approval") dict $merged -}}
 
 {{- /* Both rules are needed: the first matches a bare rm, the second rm with arguments. */ -}}
 {{- $merged = setValueAtPath (list "bash" "patterns") (list
@@ -88,6 +90,10 @@
 {{-     range get . "allow" | default list -}}
 {{-       $merged = setValueAtPath (list "tools" "approval" .) "allow" $merged -}}
 {{-     end -}}
+{{-   end -}}
+{{- /* Each tool on the ask list gets a rule that asks on every call. */ -}}
+{{-   range get .plugins.harnesses.omp "ask" | default list -}}
+{{-     $merged = setValueAtPath (list "tools" "approval" .) "prompt" $merged -}}
 {{-   end -}}
 {{- end -}}
 
