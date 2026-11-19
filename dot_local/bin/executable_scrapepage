@@ -314,6 +314,7 @@ deliver_text() {
   fi
 }
 
+# shellcheck disable=SC2034  # main reads the variables these names refer to.
 parse_args() {
   local -n copy_out="$1"
   local -n wait_for_out="$2"
