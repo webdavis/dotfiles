@@ -18,11 +18,6 @@ options = ["-i", "2", "-ci", "-s", "-w"]
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
 excludes = ["*.tmpl"]
 
-# Checks only the vendored plugins, so untracked target/ build trees stay out.
-[formatter.rust-file-size]
-command = "scripts/treefmt/rust-file-size.sh"
-includes = ["dot_local/share/**/*.rs"]
-
 # Skill, agent and output-style Markdown stays exactly as written.
 [formatter.mdformat]
 command = "mdformat"
