@@ -52,8 +52,12 @@ test-espanso-url-menu:
 test-omp-extensions:
   bun test scripts/test
 
+# Run the specs for the log that an apply leaves behind.
+test-apply-log:
+  ./scripts/test/apply-log.sh
+
 # Run all test suites.
-test: test-nvim test-nvim-lock test-bindings test-espanso-url-menu test-omp-extensions
+test: test-nvim test-nvim-lock test-bindings test-espanso-url-menu test-omp-extensions test-apply-log
 
 # Run the CI gates locally before opening a pull request.
 ship:
