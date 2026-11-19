@@ -28,11 +28,6 @@ These steps require GUI interaction or interactive auth. There's no `defaults` e
 The apply makes Homebrew's bash the login shell. Open a new terminal afterwards, because the one that ran the apply
 still runs zsh without the dotfiles' `PATH`.
 
-### Aerospace compatibility
-
-- **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces**: set per machine: ON for
-  tri-monitor, OFF for single-monitor.
-
 ### TCC privacy grants
 
 System Settings → Privacy & Security → grant the following:
