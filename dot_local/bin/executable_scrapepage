@@ -92,7 +92,9 @@ send_devtools_command() {
   local control_address="$1"
   local method="$2"
   local params="$3"
-  send_and_read_reply "$control_address" "$(devtools_request "$method" "$params")"
+  local request
+  request="$(devtools_request "$method" "$params")"
+  send_and_read_reply "$control_address" "$request"
 }
 
 evaluate_javascript() {
@@ -101,15 +103,18 @@ evaluate_javascript() {
   local evaluate_method='Runtime.evaluate'
   local expression_returning_plain_value='{expression: $expression, returnByValue: true}'
   local value_or_protocol_error='if .error then error(.error.message) else .result.result.value // "" end'
-  local params
+  local params control_address
   params="$(jq -cn --arg expression "$javascript" "$expression_returning_plain_value")"
-  send_devtools_command "$(tab_control_address "$tab_id")" "$evaluate_method" "$params" | jq -r "$value_or_protocol_error"
+  control_address="$(tab_control_address "$tab_id")"
+  send_devtools_command "$control_address" "$evaluate_method" "$params" | jq -r "$value_or_protocol_error"
 }
 
 javascript_is_true() {
   local tab_id="$1"
   local javascript="$2"
-  [[ $(evaluate_javascript "$tab_id" "$javascript") == true ]]
+  local result
+  result="$(evaluate_javascript "$tab_id" "$javascript")"
+  [[ $result == true ]]
 }
 
 list_tabs() {
@@ -143,8 +148,11 @@ tab_addresses() {
 require_at_most_one_tab() {
   local tabs="$1"
   local url="$2"
-  [[ $(tab_count "$tabs") -le 1 ]] ||
-    fail "more than one tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
+  local count addresses
+  count="$(tab_count "$tabs")"
+  addresses="$(tab_addresses "$tabs")"
+  [[ $count -le 1 ]] ||
+    fail "more than one tab matches ${url}. Give the full address of one of these:"$'\n'"$addresses"
 }
 
 first_tab_id() {
@@ -168,9 +176,10 @@ open_background_tab() {
   local open_tab_method='Target.createTarget'
   local url_in_background_tab='{url: $url, background: true}'
   local new_tab_id='.result.targetId // ""'
-  local params
+  local params control_address
   params="$(jq -cn --arg url "$url" "$url_in_background_tab")"
-  send_devtools_command "$(browser_control_address)" "$open_tab_method" "$params" | jq -r "$new_tab_id"
+  control_address="$(browser_control_address)"
+  send_devtools_command "$control_address" "$open_tab_method" "$params" | jq -r "$new_tab_id"
 }
 
 require_opened_tab() {
@@ -248,13 +257,17 @@ redirected_to_sign_in_js() {
 sign_in_check_js() {
   local opened_url="$1"
   local password_field_js="!!document.querySelector('input[type=password]')"
-  printf '%s' "${password_field_js} || $(redirected_to_sign_in_js "$opened_url")"
+  local redirected_js
+  redirected_js="$(redirected_to_sign_in_js "$opened_url")"
+  printf '%s' "${password_field_js} || ${redirected_js}"
 }
 
 has_sign_in_form() {
   local tab_id="$1"
   local opened_url="$2"
-  javascript_is_true "$tab_id" "$(sign_in_check_js "$opened_url")"
+  local sign_in_check
+  sign_in_check="$(sign_in_check_js "$opened_url")"
+  javascript_is_true "$tab_id" "$sign_in_check"
 }
 
 require_no_sign_in_form() {
