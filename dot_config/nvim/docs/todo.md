@@ -1,7 +1,6 @@
 # Neovim configuration status
 
-Source status checked on 2026-09-13. The [acceptance record](../../../docs/research/2026-09-nvim-overhaul-acceptance.md)
-separates merged implementation from private checks and operator acceptance.
+Source status checked on 2026-09-13.
 
 - [x] Configure auto-save compatibility with language server protocol (LSP) formatting. Automatic writes skip
   formatting; explicit writes retain it. Proposed claudecode diff buffers are excluded. Auto-save starts disabled and is

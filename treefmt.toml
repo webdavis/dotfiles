@@ -28,9 +28,6 @@ excludes = [
   "private_dot_claude/output-styles/**",
   # A vendored skill kept byte-identical to its upstream.
   "private_dot_hermes/private_skills/**",
-  "docs/superpowers/**",
-  # Fails mdformat's round-trip check.
-  "docs/research/2026-04-12-worktrunk.md",
   # Long lines keep one rule per line readable there.
   "AGENTS.md",
   "private_dot_codex/AGENTS.md",
