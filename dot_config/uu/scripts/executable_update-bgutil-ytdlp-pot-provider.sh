@@ -6,6 +6,7 @@ readonly exit_deferred=75
 readonly exit_failure=1
 readonly provider_checkout="$HOME/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
 readonly provider_server_dir="$provider_checkout/server"
+readonly node_binary="$HOME/.local/share/fnm/aliases/default/bin/node"
 readonly latest_release_api_url="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
 readonly plugin_download_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
 readonly installed_plugin_zip="$HOME/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
@@ -35,7 +36,16 @@ check_out_release() {
 }
 
 build_server() {
-  (cd "$provider_server_dir" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
+  (
+    cd "$provider_server_dir" &&
+      deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen &&
+      "$node_binary" node_modules/typescript/bin/tsc
+  )
+}
+
+restore_previous_build() {
+  local previous_commit=$1
+  git -C "$provider_checkout" checkout "$previous_commit" && build_server
 }
 
 download_to_file() {
@@ -69,7 +79,7 @@ main() {
     exit "$exit_deferred"
   fi
 
-  local latest installed downloaded_plugin
+  local latest installed previous_commit downloaded_plugin
   latest="$(latest_release_tag)"
   if [[ -z $latest ]]; then
     printf 'error[release-unknown]: could not determine the latest bgutil release.\n' >&2
@@ -81,8 +91,16 @@ main() {
     return
   fi
 
+  previous_commit="$(git -C "$provider_checkout" rev-parse HEAD)"
   check_out_release "$latest"
-  build_server
+  if ! build_server; then
+    if restore_previous_build "$previous_commit"; then
+      printf 'error[build-failed]: bgutil %s did not build; restored and rebuilt %s.\n' "$latest" "${installed:-$previous_commit}" >&2
+    else
+      printf 'error[build-failed]: bgutil %s did not build, and restoring %s failed; the server has no working build.\n' "$latest" "${installed:-$previous_commit}" >&2
+    fi
+    exit "$exit_failure"
+  fi
   downloaded_plugin="$(download_plugin)"
   install_plugin "$downloaded_plugin"
   restart_server
