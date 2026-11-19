@@ -25,14 +25,16 @@ oldest_daemon_start() {
   [[ -n $oldest ]] && printf '%s\n' "$oldest"
 }
 
-binary_changed_at() {
-  stat -f %m "$osqueryd_binary" 2>/dev/null
+readonly install_time='%c'
+
+binary_installed_at() {
+  stat -f "$install_time" "$osqueryd_binary" 2>/dev/null
 }
 
 daemon_runs_the_installed_build() {
   local started=$1
-  local changed=$2
-  ((started > changed))
+  local installed=$2
+  ((started > installed))
 }
 
 sudo_is_available() {
@@ -40,18 +42,18 @@ sudo_is_available() {
 }
 
 main() {
-  local started changed status=0
+  local started installed status=0
 
   if ! started="$(oldest_daemon_start)"; then
     print_error missing-tool "no osqueryd is running"
     exit "$exit_failure"
   fi
-  if ! changed="$(binary_changed_at)"; then
+  if ! installed="$(binary_installed_at)"; then
     print_error missing-tool "$osqueryd_binary is not installed"
     exit "$exit_failure"
   fi
 
-  if daemon_runs_the_installed_build "$started" "$changed"; then
+  if daemon_runs_the_installed_build "$started" "$installed"; then
     exit 0
   fi
 
