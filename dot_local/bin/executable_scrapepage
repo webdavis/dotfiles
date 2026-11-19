@@ -281,8 +281,9 @@ require_no_sign_in_form() {
   local tab_id="$1"
   local url="$2"
   local opened_url="$3"
-  ! has_sign_in_form "$tab_id" "$opened_url" ||
+  if has_sign_in_form "$tab_id" "$opened_url"; then
     fail "${url} shows a sign-in form. Sign in to it in the browser, then run scrapepage again." 3
+  fi
 }
 
 page_text() {
