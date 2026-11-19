@@ -41,6 +41,12 @@ local function arm()
   vim.wait(20)
 end
 
+-- Loaded afresh, because each augroup case deletes the group when it ends.
+local function load_autocmds()
+  package.loaded["config.autocmds"] = nil
+  require("config.autocmds")
+end
+
 return {
   ["a watched buffer follows an in-place write"] = function()
     local module = auto_reload()
@@ -74,6 +80,36 @@ return {
       arm()
     end
 
+    module.unwatch(bufnr)
+  end,
+
+  ["a watched buffer loads a file that appears after the watch started"] = function()
+    local module = auto_reload()
+    local path = temp_file("one\n")
+    assert(os.remove(path))
+    local bufnr = open(path)
+    module.watch(bufnr)
+    arm()
+
+    write(path, "two two\n")
+
+    assert(reaches(bufnr, "two two"), "the buffer still reads " .. tostring(first_line(bufnr)))
+    module.unwatch(bufnr)
+  end,
+
+  ["a watched buffer follows a file that is deleted and created again"] = function()
+    local module = auto_reload()
+    local path = temp_file("one\n")
+    local bufnr = open(path)
+    module.watch(bufnr)
+    arm()
+
+    assert(os.remove(path))
+    -- Pump the loop so the delete event is handled before the file returns.
+    vim.wait(100)
+    write(path, "two two\n")
+
+    assert(reaches(bufnr, "two two"), "the buffer still reads " .. tostring(first_line(bufnr)))
     module.unwatch(bufnr)
   end,
 
@@ -111,7 +147,7 @@ return {
   ["the augroup watches a normal file buffer without a manual watch call"] = function()
     -- Goes through the real autocmds and never calls `watch` itself.
     local module = auto_reload()
-    require("config.autocmds")
+    load_autocmds()
     local path = temp_file("one\n")
     local bufnr = open(path)
     assert(module.handles[bufnr], "BufReadPost started no watch on a normal file buffer")
@@ -123,6 +159,23 @@ return {
 
     module.unwatch(bufnr)
     -- Delete the augroup so later cases do not depend on it.
+    vim.api.nvim_del_augroup_by_name("nvim_config_auto_reload")
+  end,
+
+  ["the augroup watches a buffer whose file does not exist yet"] = function()
+    local module = auto_reload()
+    load_autocmds()
+    local path = temp_file("one\n")
+    assert(os.remove(path))
+    local bufnr = open(path)
+    assert(module.handles[bufnr], "BufNewFile started no watch on a buffer for a missing file")
+    arm()
+
+    write(path, "two two\n")
+
+    assert(reaches(bufnr, "two two"), "the buffer still reads " .. tostring(first_line(bufnr)))
+
+    module.unwatch(bufnr)
     vim.api.nvim_del_augroup_by_name("nvim_config_auto_reload")
   end,
 }

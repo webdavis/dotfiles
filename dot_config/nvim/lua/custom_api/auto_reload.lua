@@ -10,7 +10,9 @@ local start
 -- Returns the handle, or nil when this buffer has no file to watch.
 start = function(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local path = vim.uv.fs_realpath(name)
+  local missing = name ~= "" and not vim.uv.fs_lstat(name)
+  -- A missing file is awaited through its directory, because a watch needs an existing path.
+  local path = vim.uv.fs_realpath(missing and vim.fs.dirname(name) or name)
   if not path then
     -- Warn only when the file exists but its path does not resolve.
     if name ~= "" and vim.uv.fs_lstat(name) then
@@ -34,7 +36,15 @@ start = function(bufnr)
         M.unwatch(bufnr)
         return
       end
-      vim.cmd("checktime " .. bufnr)
+      if missing and not vim.uv.fs_lstat(name) then
+        return
+      end
+      if missing and not vim.bo[bufnr].modified then
+        -- `checktime` never loads a file created after its buffer, so read it afresh.
+        vim.api.nvim_buf_call(bufnr, vim.cmd.edit)
+      else
+        vim.cmd("checktime " .. bufnr)
+      end
       -- The watch follows the inode, so re-arm on the current path after each event.
       M.unwatch(bufnr)
       M.handles[bufnr] = start(bufnr)
