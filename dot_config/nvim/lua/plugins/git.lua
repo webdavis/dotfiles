@@ -911,7 +911,7 @@ return {
                     )
                     return
                   end
-                  vim.cmd("Git! push --force")
+                  vim.cmd("Git! push --force-with-lease")
                 end)
               end)
             end)

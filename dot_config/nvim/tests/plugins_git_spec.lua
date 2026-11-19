@@ -430,8 +430,8 @@ end
 cases["<C-g>! stages, amends, and force-pushes in order on success"] = function()
   local answer = press_amend_and_push(0, {})
   assert(
-    #answer.cmds == 2 and answer.cmds[1] == "Gwrite" and answer.cmds[2] == "Git! push --force",
-    "expected Gwrite then Git! push --force, got: " .. table.concat(answer.cmds, " | ")
+    #answer.cmds == 2 and answer.cmds[1] == "Gwrite" and answer.cmds[2] == "Git! push --force-with-lease",
+    "expected Gwrite then Git! push --force-with-lease, got: " .. table.concat(answer.cmds, " | ")
   )
   assert(
     answer.execute_args[1] == "commit" and answer.execute_args[2] == "--amend" and answer.execute_args[3] == "--no-edit",
@@ -453,7 +453,7 @@ cases["<C-g>! pushes against the buffer captured before the amend, not one switc
 
   local push_buf
   vim.cmd = function(command)
-    if command == "Git! push --force" then
+    if command == "Git! push --force-with-lease" then
       push_buf = vim.api.nvim_get_current_buf()
     end
   end
