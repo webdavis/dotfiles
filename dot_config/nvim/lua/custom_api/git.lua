@@ -194,20 +194,11 @@ end
 -- `cwd` picks the repository, so a caller outside it passes one.
 local function latest_commit(opts)
   opts = opts or {}
-  local repo_name = opts.repo_name
   local cwd = opts.cwd
-
-  if not repo_name then
-    error("Missing required argument `repo_name`")
-  end
 
   local hash_exit, hash = M.runner({ cmd = { "git", "rev-parse", "--short", "HEAD" }, cwd = cwd })
   if hash_exit ~= 0 then
-    return nil,
-      string.format(
-        "Unable to find latest commit.\n\nThis may occur if no commits have been made to *%s* yet.",
-        repo_name
-      )
+    return nil, "Unable to find latest commit.\n\nThis may occur if no commits have been made yet."
   end
 
   local message_exit, message = M.runner({ cmd = { "git", "log", "-1", "--pretty=%B" }, cwd = cwd })
@@ -238,35 +229,27 @@ end
 local function url(opts)
   opts = opts or {}
   local remote = opts.remote
-  local account_name = opts.account_name
-  local repo_name = opts.repo_name
 
   if not remote then
     error("Missing required argument `remote`")
-  end
-  if not account_name then
-    error("Missing required argument `account_name`")
-  end
-  if not repo_name then
-    error("Missing required argument `repo_name`")
   end
 
   local code, remote_url = M.runner({ cmd = { "git", "config", "--get", "remote." .. remote .. ".url" } })
 
   if code ~= 0 then
-    local lines = {
-      ("Couldn't find URL for `%s` remote!"):format(remote),
-      ("To set the remote URL for '%s', run: `Git remote set-url %s git@github.com/%s/%s.git`"):format(
-        remote,
-        remote,
-        account_name,
-        repo_name
-      ),
-    }
-    return nil, table.concat(lines, "\n\n")
+    return nil, ("Couldn't find URL for `%s` remote!"):format(remote)
   end
 
   return remote_url
+end
+
+local function get_repo_name_from_origin_address()
+  local code, remote_url = M.runner({ cmd = { "git", "config", "--get", "remote.origin.url" } })
+  if code ~= 0 then
+    return nil
+  end
+
+  return (remote_url:match("([^/:]+)$"):gsub("%.git$", ""))
 end
 
 local function copy_url_to_clipboard(opts)
@@ -397,6 +380,7 @@ M.default_branch = default_branch
 M.latest_commit = latest_commit
 M.copy_url_to_clipboard = copy_url_to_clipboard
 M.url = url
+M.get_repo_name_from_origin_address = get_repo_name_from_origin_address
 M.blame_sha = blame_sha
 
 return M

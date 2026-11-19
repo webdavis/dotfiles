@@ -83,20 +83,14 @@ local function set_scenario(scenario)
     github_fake.repo = function()
       return { nameWithOwner = "owner/name", owner = "owner", name = "name" }
     end
-  elseif scenario == "repo_fails" then
+  elseif scenario == "github_unreachable" then
     github_fake.account = function()
-      return { fullname = "Full Name", username = "username" }
+      github_fake.calls = github_fake.calls + 1
+      return nil, "not logged into GitHub CLI"
     end
     github_fake.repo = function()
+      github_fake.calls = github_fake.calls + 1
       return nil, "failed to get GitHub repository info"
-    end
-  elseif scenario == "repo_malformed" then
-    github_fake.account = function()
-      return { fullname = "Full Name", username = "username" }
-    end
-    -- `gh` answered with no slash, so `repo` returns a nil `name`.
-    github_fake.repo = function()
-      return { nameWithOwner = "noslash", owner = nil, name = nil }
     end
   else
     error("unknown scenario " .. tostring(scenario))
@@ -118,23 +112,16 @@ end
 git_fake.blame_sha = function()
   return "abc1234"
 end
-git_fake.latest_commit = function(opts)
-  opts = opts or {}
-  if not opts.repo_name then
-    error("Missing required argument `repo_name`")
-  end
+git_fake.latest_commit = function()
   return { hash = "abc1234", summary = "a commit", body = "" }
+end
+git_fake.get_repo_name_from_origin_address = function()
+  return "name"
 end
 git_fake.url = function(opts)
   opts = opts or {}
   if not opts.remote then
     error("Missing required argument `remote`")
-  end
-  if not opts.account_name then
-    error("Missing required argument `account_name`")
-  end
-  if not opts.repo_name then
-    error("Missing required argument `repo_name`")
   end
   return "git@github.com:owner/name.git"
 end
@@ -253,7 +240,8 @@ local function with_fake_sinks(fn)
   return ok, err
 end
 
-set_scenario("repo_fails")
+github_fake.calls = 0
+set_scenario("github_unreachable")
 
 -- Loaded with the fakes in place, so the callbacks close over them.
 local specs
@@ -305,10 +293,8 @@ with_fake_modules(function()
   assert(ok, "the gitsigns spec's on_attach raised: " .. tostring(err))
 end)
 
--- Keys whose callback reads a field off `github.account`, and keys that read one
--- off `github.repo`. The four `<C-g>r` keys read both, account first.
-local ACCOUNT_KEYS = { "<C-g>rh", "<C-g>rH", "<C-g>rs", "<C-g>rS", "<C-g>lw", "<C-g>lW" }
-local REPO_KEYS = {
+local ACCOUNT_KEYS = { "<C-g>lw", "<C-g>lW" }
+local LOCAL_KEYS = {
   "<C-g>rh",
   "<C-g>rH",
   "<C-g>rs",
@@ -321,14 +307,9 @@ local REPO_KEYS = {
   "<C-g>dhm",
 }
 
-local SCENARIOS = {
-  { scenario = "account_fails", keys = ACCOUNT_KEYS },
-  { scenario = "repo_fails", keys = REPO_KEYS },
-  { scenario = "repo_malformed", keys = REPO_KEYS },
-}
-
 local function drive(scenario, lhs)
   set_scenario(scenario)
+  github_fake.calls = 0
   reset_calls()
   local spec = captured[lhs] or error("no keymap captured for " .. lhs)
   return with_fake_sinks(spec.rhs)
@@ -354,30 +335,20 @@ end
 
 local cases = {}
 
-for _, row in ipairs(SCENARIOS) do
-  for _, lhs in ipairs(row.keys) do
-    cases[("%s notifies and stops under %s"):format(lhs, row.scenario)] = function()
-      assert_guarded(row.scenario, lhs)
-    end
+for _, lhs in ipairs(ACCOUNT_KEYS) do
+  cases[("%s notifies and stops under account_fails"):format(lhs)] = function()
+    assert_guarded("account_fails", lhs)
   end
 end
 
--- Pins both lists against the keys in git.lua.
-cases["the two guarded key lists cover exactly the twelve affected keys"] = function()
-  local union = {}
-  for _, list in ipairs({ ACCOUNT_KEYS, REPO_KEYS }) do
-    for _, lhs in ipairs(list) do
-      union[lhs] = true
-    end
+for _, lhs in ipairs(LOCAL_KEYS) do
+  cases[("%s does its work without asking GitHub"):format(lhs)] = function()
+    local ok, err = drive("github_unreachable", lhs)
+    assert(ok, lhs .. " raised: " .. tostring(err))
+    assert(github_fake.calls == 0, ("%s asked GitHub %d times"):format(lhs, github_fake.calls))
+    local effects = #calls.notifications + calls.prompts + calls.commands + calls.clipboard + calls.overseer
+    assert(effects > 0, lhs .. " did nothing")
   end
-
-  local names = {}
-  for lhs in pairs(union) do
-    assert(captured[lhs], lhs .. " is not mapped by the fugitive spec any more")
-    table.insert(names, lhs)
-  end
-  table.sort(names)
-  assert(#names == 12, ("%d keys covered, expected 12: %s"):format(#names, table.concat(names, " ")))
 end
 
 -- `<C-g>!` runs through `FugitiveExecute`, so fake it, run `vim.schedule` callbacks at once, and record `vim.cmd`.
