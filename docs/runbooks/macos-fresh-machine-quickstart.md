@@ -5,13 +5,17 @@ before running `chezmoi apply` for the first time.
 
 ## Before first `chezmoi apply`
 
-1. **Install Xcode Command Line Tools**: `xcode-select --install`. Required for git and brew.
-2. **Sign into Apple ID**: System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync) and `mas` App Store
+1. **Install Xcode Command Line Tools**: `xcode-select --install`. It returns at once and opens an installer window;
+   wait until that window says the software was installed. Required for git and brew.
+2. **Install Homebrew**:
+   `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`. Then run
+   `eval "$(/opt/homebrew/bin/brew shellenv)"` so this terminal finds `brew`.
+3. **Sign into Apple ID**: System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync) and `mas` App Store
    installs.
-3. **Retrieve the KeePassXC database**: from offline backup or iCloud Drive. Place at the path referenced in
+4. **Retrieve the KeePassXC database**: from offline backup or iCloud Drive. Place at the path referenced in
    `.chezmoi.toml.tmpl`.
-4. **Install chezmoi**: `brew install chezmoi` (or pre-install via homebrew bootstrap).
-5. **Initialize chezmoi**: `chezmoi init <repo-url>`. This will require the KeePassXC db to be reachable for any
+5. **Install chezmoi**: `brew install chezmoi` (or pre-install via homebrew bootstrap).
+6. **Initialize chezmoi**: `chezmoi init <repo-url>`. This will require the KeePassXC db to be reachable for any
    KeePassXC-templated files.
 
 ## During `chezmoi apply`
