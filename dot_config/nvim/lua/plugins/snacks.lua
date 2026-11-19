@@ -132,6 +132,13 @@ return {
             git_status_open = true,
             hidden = true,
             ignored = true,
+            win = {
+              list = {
+                keys = {
+                  ["<c-t>"] = false,
+                },
+              },
+            },
           },
           files = {
             show_empty = true,
@@ -175,6 +182,24 @@ return {
               end,
             },
             confirm = { "yank_msg", "close" },
+          },
+          projects = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-t>"] = false,
+                  ["<c-y>"] = {
+                    function(picker)
+                      vim.cmd("tabnew")
+                      Snacks.notify("New tab opened")
+                      picker:close()
+                      Snacks.picker.projects()
+                    end,
+                    mode = { "n", "i" },
+                  },
+                },
+              },
+            },
           },
         },
       },
