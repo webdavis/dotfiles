@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly elevenlabs_cli="$HOME/.local/share/fnm/aliases/default/bin/elevenlabs"
+readonly api_key_file="$HOME/.config/elevenlabs/api-key"
+readonly api_key_assignment_regex='^(export[[:space:]]+)?ELEVENLABS_API_KEY='
+
+check_api_key_is_already_set() {
+  [[ -n ${ELEVENLABS_API_KEY:-} ]]
+}
+
+check_folder_has_its_own_key() {
+  [[ -r .env ]] && grep -Eq "$api_key_assignment_regex" .env
+}
+
+check_api_key_file_is_readable() {
+  [[ -r $api_key_file ]]
+}
+
+main() {
+  if ! check_api_key_is_already_set && ! check_folder_has_its_own_key && check_api_key_file_is_readable; then
+    ELEVENLABS_API_KEY="$(<"$api_key_file")"
+    export ELEVENLABS_API_KEY
+  fi
+  exec "$elevenlabs_cli" "$@"
+}
+
+main "$@"
