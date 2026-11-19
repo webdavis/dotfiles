@@ -32,8 +32,6 @@ still runs zsh without the dotfiles' `PATH`.
 
 - **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces**: set per machine: ON for
   tri-monitor, OFF for single-monitor.
-- **System Settings → Desktop & Dock → Click wallpaper to reveal desktop**: set to "Only in Stage Manager" (the
-  `defaults` key changes name across Sequoia point releases, so manual is more durable).
 
 ### TCC privacy grants
 
