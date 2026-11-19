@@ -70,6 +70,7 @@ reading_max_age = "15s"
 enabled = true
 type = "unifi"
 url = "https://192.168.1.1"
+certificate = {{ (keepassxc "UniFi :: Certificate Fingerprint (dresden-udr)").Password | toToml }}
 device_hostname = "mister"
 api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 
