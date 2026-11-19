@@ -1,0 +1,40 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+{{- $posture := joinPath .chezmoi.homeDir ".cargo/bin/posture" }}
+{{- $installedCrates := joinPath .chezmoi.homeDir ".cargo/.crates2.json" }}
+# installed posture: {{ if stat $installedCrates }}{{ range $crate, $_ := (include $installedCrates | fromJson).installs }}{{ if hasPrefix "posture " $crate }}{{ $crate }}{{ end }}{{ end }}{{ else }}untracked{{ end }}
+# desired drop-in: {{ if stat $posture }}{{ output $posture "ssh" "print-config" | sha256sum }}{{ else }}posture missing{{ end }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+readonly posture_bin="$HOME/.cargo/bin/posture"
+
+posture_is_installed() {
+  [[ -x $posture_bin ]]
+}
+
+install_and_verify_sshd_drop_in() {
+  "$posture_bin" ssh install
+}
+
+main() {
+  report_section 'ssh' 'public-key-only sshd drop-in'
+
+  if ! posture_is_installed; then
+    report_line "$posture_bin is missing or not executable, so the sshd drop-in was left as it is; the install is deferred to the next apply." >&2
+    return 0
+  fi
+
+  authenticate_sudo_once
+
+  report_line "installing and verifying the drop-in..."
+  install_and_verify_sshd_drop_in
+  report_line "installed."
+}
+
+main "$@"
+{{ end -}}
