@@ -1,6 +1,6 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
-# plist hash: {{ include "Library/LaunchAgents/com.webdavis.clauth-daemon.plist.tmpl" | sha256sum }}
+# plist hash: {{ include "private_Library/LaunchAgents/com.webdavis.clauth-daemon.plist.tmpl" | sha256sum }}
 
 set -euo pipefail
 

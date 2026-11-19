@@ -13,9 +13,14 @@ log="$log_dir/$stamp.apply.log"
 
 # The transcript names targets and carries error text, so keep it private.
 # mkdir -p leaves an existing directory's mode alone, so set it explicitly.
-umask 077
 mkdir -p "$log_dir"
 chmod 700 "$log_dir"
+
+create_private_log() {
+  (umask 077 && : >"$log")
+}
+
+create_private_log
 
 # The unfiltered capture, removed on every exit path.
 raw="$(mktemp "$log_dir/.$stamp.raw.XXXXXX")"
