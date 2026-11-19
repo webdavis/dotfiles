@@ -48,3 +48,6 @@
 
 # grug-far.nvim is gone.
 .config/nvim/lua/plugins/grug-far.lua
+
+# posture installs the sshd drop-in, so the script that did is gone.
+.local/bin/ssh-hardening.sh
