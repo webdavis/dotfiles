@@ -9,6 +9,7 @@ source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
 readonly chezmoi_config_template="$dotfiles_directory/.chezmoi.toml.tmpl"
 readonly keepassxc_reference_pattern='keepassxc[A-Za-z]* +"[^"$]+"'
+readonly keepassxc_variable_reference_pattern='keepassxc[A-Za-z]* +(\$[A-Za-z0-9_.]+|\([^")]*("[^"]*")?)'
 readonly exit_all_found=0
 readonly exit_entries_missing=1
 readonly exit_could_not_check=2
@@ -35,6 +36,11 @@ database_path() {
 references_as_file_and_title() {
   git -C "$dotfiles_directory" grep -o -E "$keepassxc_reference_pattern" -- '*.tmpl' '**/modify_*' 'modify_*' ':!docs' |
     sed -E 's/^([^:]+):keepassxc[A-Za-z]* +"(.*)"$/\1\t\2/'
+}
+
+references_read_through_a_variable() {
+  git -C "$dotfiles_directory" grep -o -E "$keepassxc_variable_reference_pattern" -- '*.tmpl' '**/modify_*' 'modify_*' ':!docs' |
+    sed -E 's/^([^:]+):keepassxc[A-Za-z]* +(.*)$/\2 in \1/' | sort -u || true
 }
 
 titles_in() {
@@ -83,6 +89,16 @@ print_row() {
   printf '%s %-*s  %s\n' "$bullet" "$width" "$expected" "$found"
 }
 
+print_unchecked_references() {
+  local width=$1 unchecked reference
+  unchecked="$(references_read_through_a_variable)"
+  [[ -n $unchecked ]] || return 0
+  printf '\n'
+  while IFS= read -r reference; do
+    printf '%s%s%s\n' "$yellow" "$(print_row "$width" "$reference" 'not checked')" "$reset"
+  done <<<"$unchecked"
+}
+
 main() {
   local database references titles entry_names results expected found width title_count issue_count=0
   database="$(database_path)"
@@ -100,6 +116,7 @@ main() {
   report_section 'KeePass entry check' "$title_count entries the templates read"
   if [[ -z $results ]]; then
     printf '  %s%s%s\n' "$green" "success: all $title_count found" "$reset"
+    print_unchecked_references "$width"
     exit "$exit_all_found"
   fi
   printf '\n'
@@ -110,6 +127,7 @@ main() {
   done < <(printf '%s\n' "$results")
   printf '\n'
   printf '  %s%s%s%s\n' "$yellow" "$italic" "oops! $issue_count of $title_count needs fixing!" "$reset"
+  print_unchecked_references "$width"
   exit "$exit_entries_missing"
 }
 
