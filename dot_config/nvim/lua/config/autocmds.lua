@@ -17,7 +17,7 @@ local auto_reload = require("custom_api.auto_reload")
 -- Both autocmds share one group, because each augroup() call clears it.
 local auto_reload_group = augroup("auto_reload")
 
-vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "BufWritePost" }, {
   group = auto_reload_group,
   callback = function(event)
     if vim.bo[event.buf].buftype == "" and vim.api.nvim_buf_get_name(event.buf) ~= "" then
