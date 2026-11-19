@@ -258,11 +258,19 @@ is expected. An alert naming a different path is a real finding.
 - **Browser sign-ins**: 1Password browser extension, GitHub, work accounts.
 - **App Store apps requiring purchase confirmation**: after `mas install <id>`, confirm purchase in the modal that
   appears.
+- **Tailscale**: run `sudo tailscale up --accept-dns=true` once, then turn on **Disable Key Expiry** for this Mac in the
+  Tailscale admin console. Each apply ends with a reminder until this is done.
 
 ### Login Items
 
 System Settings → General → Login Items → add anything not covered by an installed-app's preferences (launchd is
 generally the better path; this is a fallback).
+
+### Repository git hooks
+
+A repository's own hooks under `.githooks/` run only after you trust that repository. In each clone whose hooks you
+want, run `git config --local hooks.trusted true`. A fresh clone carries no local config, so none of its hooks run until
+you do.
 
 ### Out-of-scope items (by design)
 
