@@ -126,13 +126,15 @@ list_tabs() {
 exact_matches() {
   local tabs="$1"
   local url="$2"
-  url="$url" awk '$2 == ENVIRON["url"]' <<<"$tabs"
+  local tabs_at_url='$2 == ENVIRON["url"]'
+  url="$url" awk "$tabs_at_url" <<<"$tabs"
 }
 
 partial_matches() {
   local tabs="$1"
   local url="$2"
-  url="$url" awk 'index($2, ENVIRON["url"])' <<<"$tabs"
+  local tabs_whose_address_contains_url='index($2, ENVIRON["url"])'
+  url="$url" awk "$tabs_whose_address_contains_url" <<<"$tabs"
 }
 
 tab_count() {
@@ -142,7 +144,8 @@ tab_count() {
 
 tab_addresses() {
   local tabs="$1"
-  awk '{ print "  " $2 }' <<<"$tabs"
+  local indented_address_per_tab='{ print "  " $2 }'
+  awk "$indented_address_per_tab" <<<"$tabs"
 }
 
 require_at_most_one_tab() {
@@ -157,7 +160,8 @@ require_at_most_one_tab() {
 
 first_tab_id() {
   local tabs="$1"
-  awk 'NR == 1 { print $1 }' <<<"$tabs"
+  local id_of_first_tab='NR == 1 { print $1 }'
+  awk "$id_of_first_tab" <<<"$tabs"
 }
 
 default_to_https_unless_scheme_given() {
@@ -251,7 +255,10 @@ redirected_to_sign_in_js() {
   local sign_in_path_pattern='/sign[-_]?in|log[-_]?in/i'
   local opened
   opened="$(json_string "$opened_url")"
-  printf '%s' "(${opened} !== '' && location.host !== new URL(${opened}).host && ${sign_in_path_pattern}.test(location.pathname))"
+  local page_was_opened="${opened} !== ''"
+  local on_another_host="location.host !== new URL(${opened}).host"
+  local on_sign_in_path="${sign_in_path_pattern}.test(location.pathname)"
+  printf '%s' "(${page_was_opened} && ${on_another_host} && ${on_sign_in_path})"
 }
 
 sign_in_check_js() {
@@ -287,7 +294,8 @@ page_text() {
 delete_unicode_pattern() {
   local pattern="$1"
   local utf8_in_and_out='-CSD'
-  PATTERN="$pattern" perl "$utf8_in_and_out" -pe 's/$ENV{PATTERN}//g'
+  local delete_every_match='s/$ENV{PATTERN}//g'
+  PATTERN="$pattern" perl "$utf8_in_and_out" -pe "$delete_every_match"
 }
 
 strip_control_characters() {
