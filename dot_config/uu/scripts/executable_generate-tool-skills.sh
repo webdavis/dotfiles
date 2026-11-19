@@ -55,7 +55,7 @@ regenerate_elevenlabs_skills() {
   local generated status=0
   generated="$(mktemp -d)"
   if ! elevenlabs generate-skills --output-dir "$generated" --quiet </dev/null >/dev/null 2>&1; then
-    print_error generate-failed "elevenlabs generate-skills failed; run it by hand to see why (it needs elevenlabs auth login once)"
+    print_error generate-failed "elevenlabs generate-skills failed; run it by hand to see why"
     status=1
   elif [[ -z $(elevenlabs_folders_in "$generated") ]]; then
     print_error generate-failed "elevenlabs generate-skills wrote no elevenlabs-* folder"
