@@ -43,6 +43,11 @@ build_server() {
   )
 }
 
+restore_previous_build() {
+  local previous_commit=$1
+  git -C "$provider_checkout" checkout "$previous_commit" && build_server
+}
+
 download_to_file() {
   local url=$1 destination=$2
   fetch_url "$url" >"$destination"
@@ -74,7 +79,7 @@ main() {
     exit "$exit_deferred"
   fi
 
-  local latest installed downloaded_plugin
+  local latest installed previous_commit downloaded_plugin
   latest="$(latest_release_tag)"
   if [[ -z $latest ]]; then
     printf 'error[release-unknown]: could not determine the latest bgutil release.\n' >&2
@@ -86,8 +91,16 @@ main() {
     return
   fi
 
+  previous_commit="$(git -C "$provider_checkout" rev-parse HEAD)"
   check_out_release "$latest"
-  build_server
+  if ! build_server; then
+    if restore_previous_build "$previous_commit"; then
+      printf 'error[build-failed]: bgutil %s did not build; restored and rebuilt %s.\n' "$latest" "${installed:-$previous_commit}" >&2
+    else
+      printf 'error[build-failed]: bgutil %s did not build, and restoring %s failed; the server has no working build.\n' "$latest" "${installed:-$previous_commit}" >&2
+    fi
+    exit "$exit_failure"
+  fi
   downloaded_plugin="$(download_plugin)"
   install_plugin "$downloaded_plugin"
   restart_server
