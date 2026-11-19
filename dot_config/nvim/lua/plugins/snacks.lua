@@ -115,6 +115,14 @@ return {
               ["<a-j>"] = { "preview_scroll_down", mode = { "n", "i" } },
               ["<a-k>"] = { "preview_scroll_up", mode = { "n", "i" } },
               ["<a-u>"] = { "list_scroll_up", mode = { "n", "i" } },
+              ["<c-t>"] = false,
+              ["<c-y>"] = { "tab", mode = { "n", "i" } },
+            },
+          },
+          list = {
+            keys = {
+              ["<c-t>"] = false,
+              ["<c-y>"] = "tab",
             },
           },
         },
@@ -124,6 +132,13 @@ return {
             git_status_open = true,
             hidden = true,
             ignored = true,
+            win = {
+              list = {
+                keys = {
+                  ["<c-t>"] = false,
+                },
+              },
+            },
           },
           files = {
             show_empty = true,
@@ -167,6 +182,59 @@ return {
               end,
             },
             confirm = { "yank_msg", "close" },
+          },
+          gh_issue = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<a-y>"] = { "gh_yank", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
+          gh_pr = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<a-y>"] = { "gh_yank", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
+          undo = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-y>"] = false,
+                  ["<c-s-y>"] = false,
+                  ["<a-y>"] = { "yank_add", mode = { "n", "i" } },
+                  ["<a-Y>"] = { "yank_del", mode = { "n", "i" } },
+                },
+              },
+              list = { keys = { ["<c-y>"] = false } },
+            },
+          },
+          projects = {
+            win = {
+              input = {
+                keys = {
+                  ["<c-t>"] = false,
+                  ["<c-y>"] = {
+                    function(picker)
+                      vim.cmd("tabnew")
+                      Snacks.notify("New tab opened")
+                      picker:close()
+                      Snacks.picker.projects()
+                    end,
+                    mode = { "n", "i" },
+                  },
+                },
+              },
+            },
           },
         },
       },

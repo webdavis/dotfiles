@@ -32,7 +32,16 @@ return {
           winbar = "%!v:lua.get_oil_winbar()",
           signcolumn = "yes:3",
         },
+        watch_for_changes = true,
         keymaps = {
+          ["<C-h>"] = false,
+          ["<C-l>"] = false,
+          ["<C-s>"] = false,
+          ["<C-t>"] = false,
+          ["<C-x>"] = { "actions.select", opts = { horizontal = true } },
+          ["<C-v>"] = { "actions.select", opts = { vertical = true } },
+          ["<C-y>"] = { "actions.select", opts = { tab = true } },
+          ["<localleader>r"] = "actions.refresh",
           ["gd"] = {
             desc = "Toggle file detail view",
             callback = function()
