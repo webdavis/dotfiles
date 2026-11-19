@@ -628,7 +628,6 @@ local GITSIGNS_KEYS = {
   { lhs = "<leader>gr", mode = "v", fn = "reset_hunk", range = true },
   { lhs = "<leader>gR", mode = "n", fn = "reset_buffer", args = {} },
   { lhs = "<leader>gU", mode = "n", fn = "reset_buffer_index", args = {} },
-  { lhs = "<leader>gu", mode = "n", fn = "stage_hunk", args = {} },
   { lhs = "<leader>gp", mode = "n", fn = "preview_hunk", args = {} },
   { lhs = "<leader>gi", mode = "n", fn = "preview_hunk_inline", args = {} },
   { lhs = "<leader>gB", mode = "n", fn = "blame_line", args = { { full = true } } },
@@ -711,6 +710,11 @@ cases["the gitsigns table covers every `Gitsigns: ` mapping the spec declares"] 
     #uncovered == 0,
     ("%d gitsigns mappings are not in the table: %s"):format(#uncovered, table.concat(uncovered, ", "))
   )
+end
+
+-- A buffer-local map here would shadow the global upstream diff picker.
+cases["gitsigns on_attach leaves `<leader>gu` unmapped"] = function()
+  assert(captured_by_mode["n <leader>gu"] == nil, "gitsigns on_attach maps <leader>gu")
 end
 
 return cases
