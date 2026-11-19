@@ -22,7 +22,7 @@ main() {
   local installer
   if ! installer="$(download_codegraph_installer)"; then
     report_line "error[download-failed]: could not download $codegraph_installer_url; CodeGraph was not installed." >&2
-    return
+    exit 1
   fi
   run_codegraph_installer "$installer"
   report_line "installed CodeGraph."
