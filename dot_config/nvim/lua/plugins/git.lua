@@ -478,8 +478,7 @@ return {
     -- These take a plain line range and no `-bar`, just like a lazy.nvim placeholder,
     -- so they complete before fugitive loads.
     cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog" },
-    -- `Gr` forwards to `Gread` with fugitive's own declaration. A placeholder would swallow `| cmd`,
-    -- and `CmdUndefined` never fires because `:Gr` abbreviates to grug-far's `GrugFar`.
+    -- `Gr` forwards to `Gread` with fugitive's own declaration. A placeholder would swallow `| cmd`.
     init = function()
       vim.api.nvim_create_user_command("Gr", function(event)
         require("lazy").load({ plugins = { "vim-fugitive" } })
@@ -1446,73 +1445,6 @@ return {
     keys = {
       { "<C-g>y", "<cmd>GitLink<cr>", mode = { "n", "v" }, desc = "Yank git link" },
       { "<C-g>oL", "<cmd>GitLink!<cr>", mode = { "n", "v" }, desc = "Git Linker: browse (line in file)" },
-    },
-  },
-  {
-    {
-      "pwntester/octo.nvim",
-      dependencies = {
-        "nvim-lua/plenary.nvim",
-        "folke/snacks.nvim",
-        "nvim-tree/nvim-web-devicons",
-      },
-      -- `octo.setup()` creates `Octo`, so the command is named here.
-      -- The `<localleader>` groups stay in `config`.
-      cmd = "Octo",
-      keys = {
-        { "<leader>ghg", "<cmd>Octo gist list<cr>", desc = "Octo: list gists", silent = true },
-        { "<leader>ghi", "<cmd>Octo issue list<cr>", desc = "Octo: list issues", silent = true },
-        { "<leader>ghI", "<cmd>Octo issue create<cr>", desc = "Octo: create issue", silent = true },
-        { "<leader>ghm", "<cmd>Octo pr merge<cr>", desc = "Octo: merge pull request", silent = true },
-        { "<leader>ghn", "<cmd>Octo notification<cr>", desc = "Octo: notifications", silent = true },
-        { "<leader>ghp", "<cmd>Octo pr list<cr>", desc = "Octo: list pull requests", silent = true },
-        { "<leader>ghP", "<cmd>Octo pr create<cr>", desc = "Octo: create pull request", silent = true },
-        { "<leader>ghr", "<cmd>Octo repo list<cr>", desc = "Octo: list repos", silent = true },
-        { "<leader>ghw", "<cmd>Octo run list<cr>", desc = "Octo: list workflow runs", silent = true },
-      },
-      config = function()
-        require("octo").setup({
-          suppress_missing_scope = {
-            projects_v2 = true,
-          },
-          default_merge_method = "merge",
-          picker = "snacks",
-          enable_builtin = true,
-          picker_config = {
-            use_emojis = false,
-            mappings = {
-              open_in_browser = { lhs = "<C-b>", desc = "Octo: open issue in browser" },
-              copy_url = { lhs = "<C-y>", desc = "Octo: copy url to system clipboard" },
-              copy_sha = { lhs = "<C-e>", desc = "Octo: copy commit SHA to system clipboard" },
-              checkout_pr = { lhs = "<C-o>", desc = "Octo: checkout pull request" },
-              merge_pr = { lhs = "<C-r>", desc = "Octo: merge pull request" },
-            },
-          },
-        })
-
-        local opts = {
-          prefix = "<localleader>",
-          buffer = 0,
-          mode = "n",
-        }
-
-        vim.api.nvim_create_autocmd("FileType", {
-          pattern = "octo",
-          callback = function()
-            local wk = require("which-key")
-            wk.add({
-              { "<localleader>a", group = "Assignee" },
-              { "<localleader>c", group = "Comment" },
-              { "<localleader>i", group = "Issue" },
-              { "<localleader>g", group = "Navigate" },
-              { "<localleader>l", group = "Label" },
-              { "<localleader>p", group = "PR" },
-              { "<localleader>r", group = "React" },
-              { "<localleader>v", group = "Review" },
-            }, opts)
-          end,
-        })
-      end,
     },
   },
 }
