@@ -20,8 +20,9 @@ before running `chezmoi apply` for the first time.
 
 ## During `chezmoi apply`
 
-The scripts that need admin rights carry `sudo` in their name and run back to back (numbers 40 to 46), so one password
-covers them.
+The scripts that need admin rights carry `sudo` in their name and run back to back (numbers 40 to 47), so one password
+covers them. The SSH hardening script needs `posture`, which the apply builds later, so it runs at 58 on the same sudo
+ticket, which the apply keeps fresh until it ends.
 
 ## After first `chezmoi apply`
 
@@ -176,25 +177,26 @@ configured while doing nothing.
 
 ### SSH hardening: reload and the way back in
 
-`ssh-hardening.sh` writes `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` (public-key-only sshd policy) and verifies it,
-but never restarts sshd. The running daemon picks the drop-in up only via the separate, deliberately disruptive
-`ssh-hardening.sh --reload`, which validates the complete configuration first, restarts the launchd service, and refuses
-to report a restart as successful until an SSH banner exchange completes on the resolved port. One documented exception:
-when Remote Login is off (the launchd service is confirmed absent), `--reload` exits 0 as a clean no-op, with no restart
-and no banner, reporting that the tree it just checked is still the one on disk. It claims nothing past that point.
-Whether the drop-in is still what sshd reads when Remote Login is next enabled is not checked at that moment, which may
-be weeks later, so run `ssh-hardening.sh --verify` once Remote Login is on. A no-op run that cannot re-read the
-configuration tree at all refuses instead of exiting 0, because it cannot say even that much.
+`posture ssh install` writes `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` (public-key-only sshd policy) and verifies
+it, but never restarts sshd. The apply runs it once `posture` is built. The running daemon picks the drop-in up only via
+the separate, deliberately disruptive `posture ssh reload`, which validates the complete configuration first, restarts
+the launchd service, and refuses to report a restart as successful until an SSH banner exchange completes on the
+resolved port. One documented exception: when Remote Login is off (the launchd service is confirmed absent), the reload
+exits 0 as a clean no-op, with no restart and no banner, reporting that the tree it just checked is still the one on
+disk. It claims nothing past that point. Whether the drop-in is still what sshd reads when Remote Login is next enabled
+is not checked at that moment, which may be weeks later, so run `posture ssh verify` once Remote Login is on. A no-op
+run that cannot re-read the configuration tree at all refuses instead of exiting 0, because it cannot say even that
+much.
 
-Before running `--reload` on a machine you are not sitting at:
+Before running `posture ssh reload` on a machine you are not sitting at:
 
 1. Above all, keep any SSH session you still have OPEN until a new login succeeds.
 2. Confirm Screen Sharing over the tailnet works BEFORE the reload, not during the incident.
 
-If `--reload` fails, warns about a possible lockout, or a new session cannot connect: from the physical console or
-Screen Sharing over the tailnet, run `ssh-hardening.sh --rollback` (or
+If the reload fails, warns about a possible lockout, or a new session cannot connect: from the physical console or
+Screen Sharing over the tailnet, run `posture ssh rollback` (or
 `sudo rm /etc/ssh/sshd_config.d/000-ssh-hardening.conf`), then turn Remote Login off and back on in System Settings >
-General > Sharing. `--rollback` removes the drop-in and confirms the hardening is out of the effective configuration;
+General > Sharing. The rollback removes the drop-in and confirms the hardening is out of the effective configuration;
 the next sshd start accepts password authentication again.
 
 #### The tailnet-only rule
