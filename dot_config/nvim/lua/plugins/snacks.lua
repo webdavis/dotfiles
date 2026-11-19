@@ -115,6 +115,14 @@ return {
               ["<a-j>"] = { "preview_scroll_down", mode = { "n", "i" } },
               ["<a-k>"] = { "preview_scroll_up", mode = { "n", "i" } },
               ["<a-u>"] = { "list_scroll_up", mode = { "n", "i" } },
+              ["<c-t>"] = false,
+              ["<c-y>"] = { "tab", mode = { "n", "i" } },
+            },
+          },
+          list = {
+            keys = {
+              ["<c-t>"] = false,
+              ["<c-y>"] = "tab",
             },
           },
         },
