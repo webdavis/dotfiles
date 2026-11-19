@@ -205,14 +205,6 @@ return {
 
           map({
             mode = "n",
-            lhs = "<leader>gu",
-            rhs = gitsigns.stage_hunk,
-            desc = "Gitsigns: Unstage Staged Hunk",
-            buffer = bufnr,
-          })
-
-          map({
-            mode = "n",
             lhs = "<leader>gp",
             rhs = gitsigns.preview_hunk,
             desc = "Gitsigns: Preview Hunk",
@@ -911,7 +903,7 @@ return {
                     )
                     return
                   end
-                  vim.cmd("Git! push --force")
+                  vim.cmd("Git! push --force-with-lease")
                 end)
               end)
             end)
