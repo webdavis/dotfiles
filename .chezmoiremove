@@ -17,6 +17,7 @@
 
 # tuicr and the worktree review built on it are gone.
 .local/bin/worktree-review.sh
+.config/tuicr
 
 # herdr is gone, with its config, its helper scripts and its Neovim backend.
 .config/herdr
