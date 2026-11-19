@@ -1,0 +1,36 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+readonly tailscaled_bin="/opt/homebrew/opt/tailscale/bin/tailscaled"
+readonly tailscaled_daemon_plist="/Library/LaunchDaemons/com.tailscale.tailscaled.plist"
+
+check_tailscaled_is_installed() {
+  [[ -x $tailscaled_bin ]]
+}
+
+verify_tailscaled_daemon_is_installed() {
+  [[ -e $tailscaled_daemon_plist ]]
+}
+
+install_tailscaled_daemon() {
+  sudo "$tailscaled_bin" install-system-daemon
+}
+
+main() {
+  check_tailscaled_is_installed || return 0
+  verify_tailscaled_daemon_is_installed && return 0
+
+  report_section 'tailscale' 'installing the system daemon'
+  authenticate_sudo_once
+  install_tailscaled_daemon
+  report_line "installed; sign in once with: sudo tailscale up --accept-dns=true"
+}
+
+main "$@"
+{{ end -}}

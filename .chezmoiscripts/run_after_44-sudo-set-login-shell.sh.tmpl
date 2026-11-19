@@ -1,0 +1,56 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+readonly login_shell="/opt/homebrew/bin/bash"
+readonly allowed_shells_file="/etc/shells"
+
+check_login_shell_is_installed() {
+  [[ -x $login_shell ]]
+}
+
+verify_login_shell_is_allowed() {
+  grep -qxF "$login_shell" "$allowed_shells_file"
+}
+
+get_current_login_shell() {
+  dscl . -read "/Users/$USER" UserShell | awk '{print $2}'
+}
+
+verify_login_shell_is_set() {
+  [[ $(get_current_login_shell) == "$login_shell" ]]
+}
+
+allow_login_shell() {
+  printf '%s\n' "$login_shell" | sudo tee -a "$allowed_shells_file" >/dev/null
+}
+
+set_login_shell() {
+  sudo chsh -s "$login_shell" "$USER"
+}
+
+main() {
+  check_login_shell_is_installed || return 0
+  if verify_login_shell_is_allowed && verify_login_shell_is_set; then
+    return 0
+  fi
+
+  report_section 'login shell' "making $login_shell the login shell"
+  authenticate_sudo_once
+  if ! verify_login_shell_is_allowed; then
+    allow_login_shell
+    report_line "added $login_shell to $allowed_shells_file."
+  fi
+  if ! verify_login_shell_is_set; then
+    set_login_shell
+    report_line "set the login shell; open a new terminal to use it."
+  fi
+}
+
+main "$@"
+{{ end -}}
