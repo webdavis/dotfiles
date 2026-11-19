@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DIA_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
+BROWSER_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
 DEBUG_PORT_TIMEOUT_SECONDS=2
 RENDER_TIMEOUT_SECONDS=20
 OPENED_TAB_ID=""
@@ -11,7 +11,7 @@ usage() {
   cat <<USAGE
 Usage: scrapepage [options] <url>
 
-Print the text of the Dia tab at <url>. A page with no tab is opened in a
+Print the text of the browser tab at <url>. A page with no tab is opened in a
 background tab, read once it has rendered, and closed.
 
 Options:
@@ -23,12 +23,12 @@ Options:
   -h, --help         Show this help.
 
 Environment:
-  CHROME_DEVTOOLS_AXI_BROWSER_URL  Dia's debugging port, ${DIA_DEBUG_URL} by default.
+  CHROME_DEVTOOLS_AXI_BROWSER_URL  The browser's debugging port, ${BROWSER_DEBUG_URL} by default.
 
 Exit codes:
   0  The text was printed or copied.
-  1  Bad arguments, more than one matching tab, or Dia did not open the page.
-  2  Dia is not listening on its debugging port.
+  1  Bad arguments, more than one matching tab, or the browser did not open the page.
+  2  No browser is listening on the debugging port.
   3  The page shows a sign-in form.
   4  The page did not render within ${RENDER_TIMEOUT_SECONDS} seconds.
 USAGE
@@ -48,7 +48,7 @@ fail() {
 
 debug_port_get() {
   local path="$1"
-  curl -sf --max-time "$DEBUG_PORT_TIMEOUT_SECONDS" "${DIA_DEBUG_URL}${path}"
+  curl -sf --max-time "$DEBUG_PORT_TIMEOUT_SECONDS" "${BROWSER_DEBUG_URL}${path}"
 }
 
 browser_info() {
@@ -56,9 +56,9 @@ browser_info() {
   debug_port_get "$browser_info_endpoint"
 }
 
-require_dia() {
+require_browser() {
   browser_info >/dev/null ||
-    fail "Dia is not listening at ${DIA_DEBUG_URL}. Start Dia with --remote-debugging-port set to that port." 2
+    fail "No browser is listening at ${BROWSER_DEBUG_URL}. Start yours with --remote-debugging-port set to that port." 2
 }
 
 browser_control_address() {
@@ -68,7 +68,7 @@ browser_control_address() {
 
 tab_control_address() {
   local tab_id="$1"
-  local websocket_base="${DIA_DEBUG_URL/http/ws}"
+  local websocket_base="${BROWSER_DEBUG_URL/http/ws}"
   local tab_control_path='/devtools/page/'
   echo "${websocket_base}${tab_control_path}${tab_id}"
 }
@@ -76,10 +76,8 @@ tab_control_address() {
 send_and_read_reply() {
   local control_address="$1"
   local message="$2"
-  local one_message='--one-message'
-  local keep_open_for_the_reply='--no-close'
   local largest_reply_bytes=16000000
-  websocat "$one_message" "$keep_open_for_the_reply" --buffer-size "$largest_reply_bytes" "$control_address" <<<"$message"
+  websocat --one-message --no-close --buffer-size "$largest_reply_bytes" "$control_address" <<<"$message"
 }
 
 devtools_request() {
@@ -94,7 +92,9 @@ send_devtools_command() {
   local control_address="$1"
   local method="$2"
   local params="$3"
-  send_and_read_reply "$control_address" "$(devtools_request "$method" "$params")"
+  local request
+  request="$(devtools_request "$method" "$params")"
+  send_and_read_reply "$control_address" "$request"
 }
 
 evaluate_javascript() {
@@ -103,15 +103,18 @@ evaluate_javascript() {
   local evaluate_method='Runtime.evaluate'
   local expression_returning_plain_value='{expression: $expression, returnByValue: true}'
   local value_or_protocol_error='if .error then error(.error.message) else .result.result.value // "" end'
-  local params
+  local params control_address
   params="$(jq -cn --arg expression "$javascript" "$expression_returning_plain_value")"
-  send_devtools_command "$(tab_control_address "$tab_id")" "$evaluate_method" "$params" | jq -r "$value_or_protocol_error"
+  control_address="$(tab_control_address "$tab_id")"
+  send_devtools_command "$control_address" "$evaluate_method" "$params" | jq -r "$value_or_protocol_error"
 }
 
 javascript_is_true() {
   local tab_id="$1"
   local javascript="$2"
-  [[ $(evaluate_javascript "$tab_id" "$javascript") == true ]]
+  local result
+  result="$(evaluate_javascript "$tab_id" "$javascript")"
+  [[ $result == true ]]
 }
 
 list_tabs() {
@@ -123,13 +126,15 @@ list_tabs() {
 exact_matches() {
   local tabs="$1"
   local url="$2"
-  url="$url" awk '$2 == ENVIRON["url"]' <<<"$tabs"
+  local tabs_at_url='$2 == ENVIRON["url"]'
+  url="$url" awk "$tabs_at_url" <<<"$tabs"
 }
 
 partial_matches() {
   local tabs="$1"
   local url="$2"
-  url="$url" awk 'index($2, ENVIRON["url"])' <<<"$tabs"
+  local tabs_whose_address_contains_url='index($2, ENVIRON["url"])'
+  url="$url" awk "$tabs_whose_address_contains_url" <<<"$tabs"
 }
 
 tab_count() {
@@ -139,19 +144,24 @@ tab_count() {
 
 tab_addresses() {
   local tabs="$1"
-  awk '{ print "  " $2 }' <<<"$tabs"
+  local indented_address_per_tab='{ print "  " $2 }'
+  awk "$indented_address_per_tab" <<<"$tabs"
 }
 
 require_at_most_one_tab() {
   local tabs="$1"
   local url="$2"
-  [[ $(tab_count "$tabs") -le 1 ]] ||
-    fail "more than one Dia tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
+  local count addresses
+  count="$(tab_count "$tabs")"
+  addresses="$(tab_addresses "$tabs")"
+  [[ $count -le 1 ]] ||
+    fail "more than one tab matches ${url}. Give the full address of one of these:"$'\n'"$addresses"
 }
 
 first_tab_id() {
   local tabs="$1"
-  awk 'NR == 1 { print $1 }' <<<"$tabs"
+  local id_of_first_tab='NR == 1 { print $1 }'
+  awk "$id_of_first_tab" <<<"$tabs"
 }
 
 default_to_https_unless_scheme_given() {
@@ -170,15 +180,16 @@ open_background_tab() {
   local open_tab_method='Target.createTarget'
   local url_in_background_tab='{url: $url, background: true}'
   local new_tab_id='.result.targetId // ""'
-  local params
+  local params control_address
   params="$(jq -cn --arg url "$url" "$url_in_background_tab")"
-  send_devtools_command "$(browser_control_address)" "$open_tab_method" "$params" | jq -r "$new_tab_id"
+  control_address="$(browser_control_address)"
+  send_devtools_command "$control_address" "$open_tab_method" "$params" | jq -r "$new_tab_id"
 }
 
 require_opened_tab() {
   local tab_id="$1"
   local url="$2"
-  [[ -n $tab_id ]] || fail "Dia did not open ${url}."
+  [[ -n $tab_id ]] || fail "The browser did not open ${url}."
 }
 
 close_tab() {
@@ -244,27 +255,35 @@ redirected_to_sign_in_js() {
   local sign_in_path_pattern='/sign[-_]?in|log[-_]?in/i'
   local opened
   opened="$(json_string "$opened_url")"
-  printf '%s' "(${opened} !== '' && location.host !== new URL(${opened}).host && ${sign_in_path_pattern}.test(location.pathname))"
+  local page_was_opened="${opened} !== ''"
+  local on_another_host="location.host !== new URL(${opened}).host"
+  local on_sign_in_path="${sign_in_path_pattern}.test(location.pathname)"
+  printf '%s' "(${page_was_opened} && ${on_another_host} && ${on_sign_in_path})"
 }
 
 sign_in_check_js() {
   local opened_url="$1"
   local password_field_js="!!document.querySelector('input[type=password]')"
-  printf '%s' "${password_field_js} || $(redirected_to_sign_in_js "$opened_url")"
+  local redirected_js
+  redirected_js="$(redirected_to_sign_in_js "$opened_url")"
+  printf '%s' "${password_field_js} || ${redirected_js}"
 }
 
 has_sign_in_form() {
   local tab_id="$1"
   local opened_url="$2"
-  javascript_is_true "$tab_id" "$(sign_in_check_js "$opened_url")"
+  local sign_in_check
+  sign_in_check="$(sign_in_check_js "$opened_url")"
+  javascript_is_true "$tab_id" "$sign_in_check"
 }
 
 require_no_sign_in_form() {
   local tab_id="$1"
   local url="$2"
   local opened_url="$3"
-  ! has_sign_in_form "$tab_id" "$opened_url" ||
-    fail "${url} shows a sign-in form. Sign in to it in Dia, then run scrapepage again." 3
+  if has_sign_in_form "$tab_id" "$opened_url"; then
+    fail "${url} shows a sign-in form. Sign in to it in the browser, then run scrapepage again." 3
+  fi
 }
 
 page_text() {
@@ -276,7 +295,8 @@ page_text() {
 delete_unicode_pattern() {
   local pattern="$1"
   local utf8_in_and_out='-CSD'
-  PATTERN="$pattern" perl "$utf8_in_and_out" -pe 's/$ENV{PATTERN}//g'
+  local delete_every_match='s/$ENV{PATTERN}//g'
+  PATTERN="$pattern" perl "$utf8_in_and_out" -pe "$delete_every_match"
 }
 
 strip_control_characters() {
@@ -294,6 +314,7 @@ deliver_text() {
   fi
 }
 
+# shellcheck disable=SC2034  # main reads the variables these names refer to.
 parse_args() {
   local -n copy_out="$1"
   local -n wait_for_out="$2"
@@ -346,7 +367,7 @@ open_page_in_new_tab() {
 main() {
   local copy=0 wait_for='' url
   parse_args copy wait_for url "$@"
-  require_dia
+  require_browser
   close_opened_tab_on_exit
 
   local tabs matches tab_id opened_url=''
