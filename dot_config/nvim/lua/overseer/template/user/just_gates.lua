@@ -1,6 +1,6 @@
 -- Runs `just ship` as one task per gate, so a failure names its gate.
 
-local GATES = { "lint-gate", "test", "lint-actions-security" }
+local GATES = { "lint-gate", "test", "lint-actions-security", "lint-secrets" }
 
 ---@param dir string
 ---@return string|nil path The justfile that defines every gate
@@ -45,7 +45,7 @@ return {
     return {
       {
         name = "just ship (one task per gate)",
-        desc = "The three gates CI runs, in CI order, each with its own status and quickfix",
+        desc = "The gates CI runs, in CI order, each with its own status and quickfix",
         tags = { "TEST" },
         builder = function()
           return {
