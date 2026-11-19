@@ -22,6 +22,20 @@ This repository contains the settings/configs for my computers, managed using [C
 
 ## Prerequisites
 
+Install the Xcode Command Line Tools:
+
+```bash
+xcode-select --install
+```
+
+The command returns at once and opens an installer window. Once that window says the software was installed, install
+[Homebrew](https://brew.sh); the second line lets this terminal find `brew`:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
 I use Chezmoi's [`keepassxc-cli`](https://www.chezmoi.io/user-guide/password-managers/keepassxc/) password manager to
 manage my dotfile secrets, which means this project requires [KeePassXC](https://keepassxc.org/):
 
