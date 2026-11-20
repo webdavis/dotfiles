@@ -39,6 +39,16 @@ rex.bind("ctrl+d>alt+x", "session.close")
 rex.bind("ctrl+d>g", "session.switch")
 rex.bind("ctrl+d>shift+o", "session.switch")
 rex.bind("ctrl+d>c", "pane.copy_mode.enter")
+rex.action({
+  name = "enter_copy_mode_and_search",
+  title = "Enter Copy Mode and Search",
+  run = function()
+    rex.client.queue("pane.copy_mode.enter")
+    rex.client.queue("pane.copy_mode.search", { direction = "backward" })
+  end,
+})
+rex.bind("ctrl+d>/", "enter_copy_mode_and_search")
+rex.bind("cmd+f", "enter_copy_mode_and_search")
 rex.bind("ctrl+d>shift+r", "client.config.reload")
 
 rex.mode("resize", { exclusive = true })
@@ -56,9 +66,11 @@ rex.bind("resize/enter", "client.mode.exit")
 
 rex.bind("cmd+b", "client.sidebar.toggle")
 rex.bind("cmd+/", "pane.view_activity")
-rex.bind("cmd+f", "pane.float")
-rex.bind("cmd+j", "pane.new_floating")
-rex.bind("cmd+m", "pane.minimize_floating")
+rex.bind("cmd+shift+=", "pane.zoom")
+rex.bind("cmd+enter", "pane.float")
+rex.bind("cmd+shift+enter", "pane.minimize_floating")
+rex.bind("cmd+shift+;", "pane.new_floating")
+rex.bind("cmd+;", "pane.split.auto")
 
 local pwe_loaded, pwe = pcall(require, "pwe")
 if pwe_loaded then
