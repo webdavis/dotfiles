@@ -14,12 +14,12 @@ heartbeat = "{{ printf "%02d:%02d" (int .posture.osquery.heartbeatHour) (int .po
 processes = ["pns.gateway"]
 
 [notify]
-mode = "hermes"
+mode = "command"
 route = "posture-pages"
 
 [notify.command]
 path = "{{ joinPath .chezmoi.homeDir ".cargo/bin" "pns" }}"
-arguments = ["send", "--json"]
+arguments = ["send", "--request"]
 
 [notify.hermes]
 url = "http://127.0.0.1:8644/webhooks"
