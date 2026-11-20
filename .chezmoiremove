@@ -51,3 +51,6 @@
 
 # posture installs the sshd drop-in, so the script that did is gone.
 .local/bin/ssh-hardening.sh
+
+# The damnit config that config.lua and secrets.lua replace.
+.config/dam/config.toml
