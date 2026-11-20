@@ -227,7 +227,7 @@ brightness_percent = 100
 duration = "4s"
 brightness_percent = 100
 
-[lights.blocked]
+[lights.waiting]
 duration = "2s"
 high_percent = 100
 low_percent = 30
@@ -260,30 +260,30 @@ high_percent = 7
 low_percent = 1
 
 [lights.lamp."1F - Front door - HCL1"]
-behaviours = ["loop", "blocked", "unseen"]
-dim_behaviours = ["blocked", "unseen", "loop"]
+behaviours = ["loop", "waiting", "unseen"]
+dim_behaviours = ["waiting", "unseen", "loop"]
 
 [lights.lamp."2F - Kitchen - HCD5"]
 behaviours = ["checks"]
 
 [lights.lamp."2F - Kitchen - HCD6"]
-behaviours = ["loop", "blocked", "unseen"]
+behaviours = ["loop", "waiting", "unseen"]
 
 [lights.lamp."3F - MBedroom - HCL2"]
 behaviours = ["checks"]
 
 [lights.lamp."3F - MBedroom - HCL3"]
-behaviours = ["loop", "blocked", "unseen"]
+behaviours = ["loop", "waiting", "unseen"]
 
-[lights.lamp."3F - Studio - HCL2"]
+[lights.lamp."3f-studio-cs1"]
+behaviours = ["loop", "waiting", "unseen"]
+
+[lights.lamp."3f-studio-cs2"]
 behaviours = ["checks"]
-
-[lights.lamp."3F - Studio - HCL3"]
-behaviours = ["loop", "blocked", "unseen"]
 
 [lights.room."2F - Kitchen"]
 behaviours = ["done", "failed"]
-dim_behaviours = ["blocked", "unseen", "loop", "checks"]
+dim_behaviours = ["waiting", "unseen", "loop", "checks"]
 
 [lights.room."3F - MBedroom"]
 behaviours = ["done", "failed"]
@@ -291,5 +291,5 @@ dim_behaviours = []
 
 [lights.room."3F - Studio"]
 behaviours = ["done", "failed"]
-dim_behaviours = ["blocked", "unseen", "loop", "checks"]
+dim_behaviours = ["waiting", "unseen", "loop", "checks"]
 {{- end }}
