@@ -56,9 +56,11 @@ rex.bind("resize/enter", "client.mode.exit")
 
 rex.bind("cmd+b", "client.sidebar.toggle")
 rex.bind("cmd+/", "pane.view_activity")
-rex.bind("cmd+f", "pane.float")
-rex.bind("cmd+j", "pane.new_floating")
-rex.bind("cmd+m", "pane.minimize_floating")
+rex.bind("cmd+shift+=", "pane.zoom")
+rex.bind("cmd+enter", "pane.float")
+rex.bind("cmd+shift+enter", "pane.minimize_floating")
+rex.bind("cmd+shift+;", "pane.new_floating")
+rex.bind("cmd+;", "pane.split.auto")
 
 local pwe_loaded, pwe = pcall(require, "pwe")
 if pwe_loaded then
