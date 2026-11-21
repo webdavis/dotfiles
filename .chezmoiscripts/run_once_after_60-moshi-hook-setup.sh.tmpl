@@ -10,9 +10,8 @@ readonly moshi_hook="/opt/homebrew/bin/moshi-hook"
 readonly brew="/opt/homebrew/bin/brew"
 readonly device_token={{ $token | quote }}
 readonly paired_status_pattern='^status: *paired'
-readonly harnesses_moshi_hook_notifies="opencode,gemini,cursor,kimi,qwen,grok,pi"
-readonly harnesses_pns_notifies="codex,omp"
 readonly moshi_tap="rjyo/moshi"
+readonly broccoli_omp_agent_folder="$HOME/.omp/profiles/broccoli/agent"
 readonly codex_hooks_file="$HOME/.codex/hooks.json"
 readonly jq="/opt/homebrew/bin/jq"
 readonly codex_hooks_without_pns='
@@ -37,12 +36,14 @@ pair_host_with_phone() {
   "$moshi_hook" pair --token "$device_token"
 }
 
-remove_moshi_hook_from_harnesses_pns_notifies() {
-  "$moshi_hook" uninstall --target "$harnesses_pns_notifies" 2>/dev/null || true
+install_moshi_hook_into_detected_harnesses() {
+  "$moshi_hook" install
 }
 
-install_moshi_hook_into_harnesses() {
-  "$moshi_hook" install --target "$harnesses_moshi_hook_notifies"
+install_moshi_hook_into_broccoli_omp_profile() {
+  if [[ -d $broccoli_omp_agent_folder ]]; then
+    PI_CODING_AGENT_DIR="$broccoli_omp_agent_folder" "$moshi_hook" install --target omp
+  fi
 }
 
 remove_pns_hooks_from_codex() {
@@ -75,9 +76,9 @@ main() {
     report_line "paired."
   fi
 
-  report_line "installing hooks for $harnesses_moshi_hook_notifies..."
-  remove_moshi_hook_from_harnesses_pns_notifies
-  install_moshi_hook_into_harnesses
+  report_line "installing hooks into every harness moshi-hook detects..."
+  install_moshi_hook_into_detected_harnesses
+  install_moshi_hook_into_broccoli_omp_profile
   remove_pns_hooks_from_codex
   report_line "installed hooks."
 

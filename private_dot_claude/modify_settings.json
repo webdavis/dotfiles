@@ -90,12 +90,47 @@
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
 {{- $home := .chezmoi.homeDir -}}
+{{- $liveHooks := dict -}}
+{{- if eq (kindOf $merged) "map" -}}
+{{-   $liveHooksValue := index $merged "hooks" -}}
+{{-   if eq (kindOf $liveHooksValue) "map" -}}
+{{-     $liveHooks = $liveHooksValue -}}
+{{-   end -}}
+{{- end -}}
+
+{{- $hooks := dict -}}
+{{- range $event, $liveEntries := $liveHooks -}}
+{{-   $moshiHookEntries := list -}}
+{{-   if eq (kindOf $liveEntries) "slice" -}}
+{{-     range $liveEntry := $liveEntries -}}
+{{-       $moshiHookCommands := list -}}
+{{-       if eq (kindOf $liveEntry) "map" -}}
+{{-         $liveCommands := index $liveEntry "hooks" -}}
+{{-         if eq (kindOf $liveCommands) "slice" -}}
+{{-           range $liveCommand := $liveCommands -}}
+{{-             if contains "moshi-hook" (toJson $liveCommand) -}}
+{{-               $moshiHookCommands = append $moshiHookCommands $liveCommand -}}
+{{-             end -}}
+{{-           end -}}
+{{-         end -}}
+{{-       end -}}
+{{-       if $moshiHookCommands -}}
+{{-         $moshiHookEntries = append $moshiHookEntries (set $liveEntry "hooks" $moshiHookCommands) -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{-   if $moshiHookEntries -}}
+{{-     $hooks = set $hooks $event $moshiHookEntries -}}
+{{-   end -}}
+{{- end -}}
+
 {{- $rexSessionStartEntry := dict
     "hooks" (list (dict
       "type" "command"
       "command" "/bin/sh -c 'rex __internal session-start --agent claude --feature-session-naming=false 2>/dev/null || true'"
       "timeout" 5)) -}}
-{{- $hooks := dict "SessionStart" (list $rexSessionStartEntry) -}}
+{{- $moshiHookSessionStartEntries := get $hooks "SessionStart" | default list -}}
+{{- $hooks = set $hooks "SessionStart" (prepend $moshiHookSessionStartEntries $rexSessionStartEntry) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- $statusLine := dict
