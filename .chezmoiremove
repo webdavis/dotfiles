@@ -54,3 +54,8 @@
 
 # The damnit config that config.lua and secrets.lua replace.
 .config/dam/config.toml
+
+# moshi-hook notifies the harnesses, so the pns extensions are gone.
+.pi/agent/extensions/pns-reminders.ts
+.omp/agent/extensions/pns.js
+.omp/profiles/broccoli/agent/extensions/pns.js

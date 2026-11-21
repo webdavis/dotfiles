@@ -90,91 +90,12 @@
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
 {{- $home := .chezmoi.homeDir -}}
-{{- $pns := joinPath $home ".cargo/bin" "pns" -}}
-{{- $hooks := dict
-    "UserPromptSubmit" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s hook prompt" $pns)))))
-    "Stop" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook stop" $pns)))))
-    "PostModelSwitch" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook model-switch >/dev/null" $pns)))))
-    "StopFailure" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook stop-failure" $pns)))))
-    "Notification" (list
-      (dict
-        "matcher" "quota_auto_resume_fired|quota_auto_resume_stale|quota_auto_resume_disabled"
-        "hooks" (list (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s hook quota" $pns))))
-      (dict
-        "matcher" "permission_prompt"
-        "hooks" (list (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s hook waiting" $pns)))))
-    "PermissionRequest" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s hook blocked --remind" $pns)))))
-    "PermissionDenied" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook denied" $pns)))))
-    "Elicitation" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook asked" $pns)))))
-    "PostToolBatch" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook resolved" $pns)))))
-    "PostToolUse" (list
-      (dict
-        "matcher" "AskUserQuestion"
-        "hooks" (list (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s hook resolved" $pns))))
-      (dict
-        "matcher" "ExitPlanMode"
-        "hooks" (list (dict
-          "type" "command"
-          "async" true
-          "command" (printf "%s hook resolved" $pns)))))
-    "ElicitationResult" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook resolved" $pns)))))
-    "SubagentStop" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook resolved" $pns)))))
-    "SessionEnd" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s hook session-end" $pns)))))
-    "SessionStart" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" "/bin/sh -c 'rex __internal session-start --agent claude --feature-session-naming=false 2>/dev/null || true'"
-        "timeout" 5)))) -}}
+{{- $rexSessionStartEntry := dict
+    "hooks" (list (dict
+      "type" "command"
+      "command" "/bin/sh -c 'rex __internal session-start --agent claude --feature-session-naming=false 2>/dev/null || true'"
+      "timeout" 5)) -}}
+{{- $hooks := dict "SessionStart" (list $rexSessionStartEntry) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
 {{- $statusLine := dict

@@ -13,6 +13,16 @@ readonly paired_status_pattern='^status: *paired'
 readonly harnesses_moshi_hook_notifies="opencode,gemini,cursor,kimi,qwen,grok,pi"
 readonly harnesses_pns_notifies="codex,omp"
 readonly moshi_tap="rjyo/moshi"
+readonly codex_hooks_file="$HOME/.codex/hooks.json"
+readonly jq="/opt/homebrew/bin/jq"
+readonly codex_hooks_without_pns='
+  def is_pns_hook: (.command // "") | contains("pns hook");
+  def without_pns_hooks: .hooks |= map(select(is_pns_hook | not));
+  def has_hooks: .hooks | length > 0;
+  .hooks |= (
+    map_values(map(without_pns_hooks) | map(select(has_hooks)))
+    | with_entries(select(.value | length > 0))
+  )'
 
 read_pairing_status() {
   "$moshi_hook" status 2>/dev/null || true
@@ -33,6 +43,15 @@ remove_moshi_hook_from_harnesses_pns_notifies() {
 
 install_moshi_hook_into_harnesses() {
   "$moshi_hook" install --target "$harnesses_moshi_hook_notifies"
+}
+
+remove_pns_hooks_from_codex() {
+  if [[ ! -f $codex_hooks_file ]]; then
+    return
+  fi
+  local hooks_without_pns
+  hooks_without_pns="$("$jq" "$codex_hooks_without_pns" "$codex_hooks_file")"
+  printf '%s\n' "$hooks_without_pns" >"$codex_hooks_file"
 }
 
 trust_current_moshi_tap_revision() {
@@ -59,6 +78,7 @@ main() {
   report_line "installing hooks for $harnesses_moshi_hook_notifies..."
   remove_moshi_hook_from_harnesses_pns_notifies
   install_moshi_hook_into_harnesses
+  remove_pns_hooks_from_codex
   report_line "installed hooks."
 
   report_line "starting the moshi-hook service..."

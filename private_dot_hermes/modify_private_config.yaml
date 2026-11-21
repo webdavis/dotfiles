@@ -73,13 +73,8 @@
 {{- /* Saving from the `hermes tools` picker drops the sentinel until the next apply. */ -}}
 {{- $merged = setValueAtPath (list "platform_toolsets" "webhook") (list "no_mcp") $merged -}}
 
-{{- /* hermes runs hooks without a shell, so the path is absolute and env sets PNS_PRODUCER. */ -}}
-{{- /* --remind arms pns's reminder and the resolved hook clears it; hermes asks consent per new command. */ -}}
-{{- $pns := joinPath .chezmoi.homeDir ".cargo/bin" "pns" -}}
-{{- $merged = setValueAtPath (list "hooks" "pre_approval_request")
-    (list (dict "command" (printf "/usr/bin/env PNS_PRODUCER=hermes %s hook blocked --remind" $pns))) $merged -}}
-{{- $merged = setValueAtPath (list "hooks" "post_approval_response")
-    (list (dict "command" (printf "/usr/bin/env PNS_PRODUCER=hermes %s hook resolved" $pns))) $merged -}}
+{{- $merged = deleteValueAtPath "hooks.pre_approval_request" $merged -}}
+{{- $merged = deleteValueAtPath "hooks.post_approval_response" $merged -}}
 
 {{- $merged = setValueAtPath (list "tts" "elevenlabs" "voice_id") (keepassxc "ElevenLabs :: Voice ID").Password $merged -}}
 
