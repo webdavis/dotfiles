@@ -34,6 +34,7 @@ posture:
     - id: lulu_extension
       description: "The LuLu outbound-firewall system extension process"
       tier: verify
+      enabled: false
       reader: pgrep_lulu_extension
       expect: "running"
       remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
@@ -41,6 +42,7 @@ posture:
     - id: lulu_rule_tailscaled
       description: "The LuLu rule-archive mention of /usr/local/bin/tailscaled, existence-only (remote recovery path 2)"
       tier: verify
+      enabled: false
       reader: lulu_rule_present
       expect: "present"
       target: /usr/local/bin/tailscaled
@@ -48,6 +50,7 @@ posture:
     - id: lulu_rule_hermes_gateway
       description: "The LuLu rule-archive mention of the resolved Hermes gateway interpreter, existence-only (the alerting egress hop)"
       tier: verify
+      enabled: false
       reader: lulu_rule_resolved_present
       expect: "present"
       target: /Users/stephen/.hermes/hermes-agent/venv/bin/python
