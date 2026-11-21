@@ -25,9 +25,9 @@
   - While a branch is unmerged, what the owner asks for about the code it changes is feedback on that branch. It goes in that branch's worktree, and the PR's title and description are updated to cover it.
   - A new feature, or a fix to something else, is unrelated work, even in the same tool or the same conversation.
 - Commits:
-  - One commit per behavior change. History reads as what changed, never as how the work went.
-  - Commit a behavior change once it is done.
-  - Feedback on a commit that main does not hold yet, including an edit the owner makes by hand, is folded into that commit, never into a new one:
+  - Commit each test cycle: one commit when a failing test turns green, and one for its refactor, if it has one.
+  - Every other change gets its own commit: config, a refactor outside a test cycle, anything else. Related changes share one commit.
+  - A fix for a mistake in a commit that main does not hold yet, including an edit the owner makes by hand, is folded into that commit, never into a new one:
     - Use `git commit --amend` for the latest commit.
     - Use `git commit --fixup <commit>` and `git rebase --autosquash` for an older commit.
     - If the branch has already been pushed, then use `git push --force-with-lease` to push the updates.
