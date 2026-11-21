@@ -4,8 +4,13 @@
 -- `cond` reads argv, because lazy.nvim evaluates it before a UI attaches.
 -- Headless runs skip the plugin.
 
----First macOS ephemeral port. moshi-hook's listener probe skips ports from here up.
-local LOWEST_UNPROBED_PORT = 49152
+local highest_tcp_port = 65535
+local moshi_hook_highest_port_probed = 49151
+
+local claudecode_safe_port_range = {
+  min = moshi_hook_highest_port_probed + 1,
+  max = highest_tcp_port,
+}
 
 local function is_headless()
   for _, arg in ipairs(vim.v.argv) do
@@ -58,9 +63,7 @@ return {
   opts = function()
     return {
       log_level = #vim.api.nvim_list_uis() == 0 and "warn" or "info",
-      -- moshi-hook probes every lower port, and the plugin crashes on that probe.
-      -- This range is the only guard.
-      port_range = { min = LOWEST_UNPROBED_PORT, max = 65535 },
+      port_range = claudecode_safe_port_range,
       terminal = {
         provider = "none",
       },
