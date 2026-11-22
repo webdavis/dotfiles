@@ -234,6 +234,10 @@ broccoli:
       langsmith:
         type: http
         url: https://api.smith.langchain.com/mcp
+        headers:
+          X-Api-Key:
+            vault: langsmith-broccoli-api-key
+            field: Password
       deepgram:
         enabled: false
         type: stdio
