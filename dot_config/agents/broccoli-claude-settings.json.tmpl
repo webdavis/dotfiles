@@ -1,0 +1,5 @@
+{{- $denied := list -}}
+{{- range $name := includeTemplate "personal-mcp-servers.json.tmpl" . | fromJson | keys | sortAlpha -}}
+{{-   $denied = append $denied (dict "serverName" $name) -}}
+{{- end -}}
+{{ dict "deniedMcpServers" $denied | toPrettyJson }}

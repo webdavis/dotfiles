@@ -187,7 +187,8 @@ start-broccoli-session() {
       echo "${skills[*]}"
     )" "$@"
   else
-    clauth start broccoli "${plugin_options[@]}" "$@"
+    clauth start broccoli --settings "$HOME/.config/agents/broccoli-claude-settings.json" \
+      "${plugin_options[@]}" "$@"
   fi
 }
 alias sbs='start-broccoli-session broccoli-tech-support'
