@@ -3,8 +3,9 @@
 # {vault, field, prefix} so the secret is read from KeePassXC, and ask lists the tools Claude must ask before calling.
 # packages: the system_packages_autoinstall.yaml shape.
 # omp: what a Broccoli session on omp loads beyond its plugin folders. plugins: the agent-plugins.yaml shape,
-# installed in the broccoli profile. tech_support and engineering name the only other skills that load; an
-# engineering session gets both lists. auto lets the model pick the skill; manual loads it for /skill:<name> alone.
+# installed in the broccoli profile. extensions: npm extensions installed in the broccoli profile, each named as
+# package. tech_support and engineering name the only other skills that load; an engineering session gets both
+# lists. auto lets the model pick the skill; manual loads it for /skill:<name> alone.
 # A skill whose plain name another plugin holds is named with its prefix, as in pstack/tdd.
 broccoli:
   omp:
@@ -30,6 +31,8 @@ broccoli:
       - marketplace: "max-sixty/worktrunk"
         plugins:
           - "worktrunk@worktrunk"
+    extensions:
+      - package: "omp-clear-screen"
     tech_support:
       auto:
         - "chrome-devtools-axi"

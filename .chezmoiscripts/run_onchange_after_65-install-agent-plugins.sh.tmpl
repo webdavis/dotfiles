@@ -12,7 +12,7 @@
 {{- range $d.hermes.hub -}}
 {{-   $hermesHubSkills = append $hermesHubSkills (printf "%s %s" .profile .identifier) -}}
 {{- end -}}
-{{- /* Each line is "<omp profile> <marketplace name> <source>" or "<omp profile> <plugin id>". */ -}}
+{{- /* Each line is "<omp profile> <marketplace name> <source>", "<omp profile> <plugin id>" or "<omp profile> <npm package>". */ -}}
 {{- $ompMarketplaces := list -}}
 {{- $ompPlugins := list -}}
 {{- range $profile, $entries := dict "default" .plugins.harnesses.omp.plugins "broccoli" .broccoli.omp.plugins -}}
@@ -25,7 +25,9 @@
 {{-   end -}}
 {{- end -}}
 {{- $ompNpmPackages := list -}}
-{{- range .plugins.harnesses.omp.extensions -}}{{- $ompNpmPackages = append $ompNpmPackages .package -}}{{- end -}}
+{{- range $profile, $entries := dict "default" .plugins.harnesses.omp.extensions "broccoli" .broccoli.omp.extensions -}}
+{{-   range $entries -}}{{- $ompNpmPackages = append $ompNpmPackages (printf "%s %s" $profile .package) -}}{{- end -}}
+{{- end -}}
 #!/usr/bin/env bash
 # agent-plugins.yaml: {{ include ".chezmoidata/agent-plugins.yaml" | sha256sum }}
 # broccoli-tools.yaml omp plugins: {{ .broccoli.omp.plugins | toJson | sha256sum }}
@@ -294,31 +296,42 @@ install_missing_omp_plugins() {
   return "$status"
 }
 
-omp_npm_package_names() {
-  omp plugin list --json </dev/null | jq -r '.npm[]?.name'
+omp_npm_package_names_in() {
+  local profile=$1
+  omp_in_profile "$profile" plugin list --json </dev/null | jq -r '.npm[]?.name'
 }
 
 install_omp_npm_package_if_missing() {
-  local installed_names=$1 package=$2
+  local installed_names=$1 profile=$2 package=$3
   if list_includes "$installed_names" "$package"; then
     return
   fi
-  run_install_command install-failed omp plugin install "npm:$package" || return 1
-  report_under_header "omp: installed npm package $package"
+  run_install_command install-failed omp_in_profile "$profile" plugin install "npm:$package" || return 1
+  report_under_header "omp: installed npm package $package in profile $profile"
 }
 
-install_missing_omp_npm_packages() {
-  if no_entries_in "$omp_npm_packages"; then
-    return
-  fi
+omp_profiles_with_npm_packages() {
+  non_blank_lines_of "$omp_npm_packages" | awk '{ print $1 }' | uniq
+}
+
+install_missing_omp_npm_packages_in_profile() {
+  local profile=$1
   local installed_names package status=0
-  if ! installed_names="$(omp_npm_package_names)"; then
-    report_error list-failed "omp plugin list --json did not answer"
+  if ! installed_names="$(omp_npm_package_names_in "$profile")"; then
+    report_error list-failed "omp plugin list --json did not answer for profile $profile"
     return 1
   fi
   while read -r -u 3 package; do
-    install_omp_npm_package_if_missing "$installed_names" "$package" || status=1
-  done 3< <(non_blank_lines_of "$omp_npm_packages")
+    install_omp_npm_package_if_missing "$installed_names" "$profile" "$package" || status=1
+  done 3< <(non_blank_lines_of "$omp_npm_packages" | awk -v profile="$profile" '$1 == profile { print $2 }')
+  return "$status"
+}
+
+install_missing_omp_npm_packages() {
+  local profile status=0
+  while read -r -u 4 profile; do
+    install_missing_omp_npm_packages_in_profile "$profile" || status=1
+  done 4< <(omp_profiles_with_npm_packages)
   return "$status"
 }
 
