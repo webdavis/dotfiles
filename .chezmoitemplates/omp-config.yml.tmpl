@@ -61,6 +61,7 @@
 {{-   $skills := .broccoli.omp.tech_support -}}
 {{-   $merged = setValueAtPath (list "skills" "includeSkills") (concat $skills.auto $skills.manual | sortAlpha) $merged -}}
 {{-   $merged = setValueAtPath (list "skills" "manualSkills") ($skills.manual | sortAlpha) $merged -}}
+{{-   $merged = setValueAtPath (list "compaction" "thresholdTokens") (fromYaml "200000") $merged -}}
 {{- /* The Broccoli advisor runs on the personal ChatGPT login, so its reviews spend no work usage. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "advisor") "openai-codex/gpt-6-astra" $merged -}}
 {{- /* omp runs every MCP tool unasked, so each tool on a server's ask list gets a rule that asks on every call. */ -}}
@@ -76,6 +77,7 @@
 {{- else -}}
 {{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
 {{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}
+{{-   $merged = setValueAtPath (list "compaction" "thresholdTokens") (fromYaml "500000") $merged -}}
 {{- /* Scouts, mechanical subagents and background jobs run on the smol role. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "smol") "anthropic/claude-sonnet-5-5" $merged -}}
 {{- /* These roles exist only so the model cycle keys can reach their models. */ -}}
