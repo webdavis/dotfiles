@@ -36,6 +36,11 @@
 - Pull Requests:
   - Opening a PR, merging it, and setting auto-merge are three separate requests. Do one only when the owner asks for it by name. A request to open a PR is not a request to merge it.
   - Opening: one PR per piece of work.
+  - Describing: the body is four sections in this order, and replaces any skill's template:
+    - Summary: what changes for the user and why, in at most two sentences.
+    - Changes: one line per commit.
+    - Testing: one line per check run, with its result.
+    - Notes: only what the owner must do or know before merging. Omit it when empty.
   - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
   - Merging:
     1. Use `wt switch main` to move to the `main` branch checkout.
