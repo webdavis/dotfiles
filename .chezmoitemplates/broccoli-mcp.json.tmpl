@@ -1,6 +1,9 @@
 {{- $servers := dict -}}
 {{- range $name, $server := .servers -}}
-{{-   $rendered := omit $server "headers" "ask" -}}
+{{-   if and (hasKey $server "enabled") (not $server.enabled) -}}
+{{-     continue -}}
+{{-   end -}}
+{{-   $rendered := omit $server "headers" "ask" "enabled" -}}
 {{-   if hasKey $server "headers" -}}
 {{-     $headers := dict -}}
 {{-     range $header, $value := $server.headers -}}

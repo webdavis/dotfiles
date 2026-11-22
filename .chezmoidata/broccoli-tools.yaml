@@ -221,26 +221,31 @@ broccoli:
         ask:
           - devin_session_create
       resend:
+        enabled: false
         type: http
         url: https://mcp.resend.com/mcp
       clerk:
         type: http
         url: https://mcp.clerk.com/mcp
       supabase:
+        enabled: false
         type: http
         url: https://mcp.supabase.com/mcp?read_only=true
       langsmith:
         type: http
         url: https://api.smith.langchain.com/mcp
       deepgram:
+        enabled: false
         type: stdio
         command: dg
         args:
           - mcp
       newrelic:
+        enabled: false
         type: http
         url: https://mcp.newrelic.com/mcp/
       hubspot:
+        enabled: false
         type: http
         url: https://mcp.hubspot.com/anthropic
         ask:

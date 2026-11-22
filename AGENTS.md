@@ -83,7 +83,7 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 - Package manager provides it: the entry goes under `broccoli.packages`.
 - Ships its own installer: add an installer to the script under `.chezmoiscripts/` that installs the `npx` entries of `.chezmoidata/broccoli-tools.yaml`. Shape it and call it like the installers already in that script, and keep it from editing shell startup files, as they are.
 - Skill: an `npx` entry under the key of the folder that loads it. An entry with no path after the repo installs every skill in that repo. That script removes any skill whose entry is gone, so a removed entry needs no other step.
-- MCP server: an entry under that key's `mcp_servers`, with the tools that must ask first in its `ask` list. To remove one, clear any login with `/mcp` in a session that loads the folder, then delete its entry. The next apply drops the server and its ask rules.
+- MCP server: an entry under that key's `mcp_servers`, with the tools that must ask first in its `ask` list. To remove one, clear any login with `/mcp` in a session that loads the folder, then delete its entry. The next apply drops the server and its ask rules. To keep an entry but stop loading its server, set `enabled: false` on it.
 
 ### omp
 
