@@ -1,5 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{- $token := (keepassxc "moshi-hook :: Device Token").Password -}}
+{{- $token := includeTemplate "secret.tmpl" (list "moshi_hook_device_token" "Password") -}}
 #!/usr/bin/env bash
 
 set -euo pipefail

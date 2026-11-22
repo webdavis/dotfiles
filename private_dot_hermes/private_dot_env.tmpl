@@ -1,14 +1,14 @@
 WEBHOOK_ENABLED=true
 WEBHOOK_PORT=8644
 
-ANTHROPIC_TOKEN={{ (keepassxc "Anthropic :: Auth Token").Password }}
-DISCORD_BOT_TOKEN={{ (keepassxc "Discord (Uriel) :: Bot Token (Bob)").Password }}
-ELEVENLABS_API_KEY={{ (keepassxc "ElevenLabs :: API Key").Password }}
-OPENROUTER_API_KEY={{ (keepassxc "OpenRouter :: API Key (hermes-agent)").Password }}
-TAVILY_API_KEY={{ (keepassxc "Tavily :: API Key").Password }}
+ANTHROPIC_TOKEN={{ includeTemplate "secret.tmpl" (list "anthropic_auth_token" "Password") }}
+DISCORD_BOT_TOKEN={{ includeTemplate "secret.tmpl" (list "discord_bot_token_bob" "Password") }}
+ELEVENLABS_API_KEY={{ includeTemplate "secret.tmpl" (list "elevenlabs_api_key" "Password") }}
+OPENROUTER_API_KEY={{ includeTemplate "secret.tmpl" (list "openrouter_api_key_hermes" "Password") }}
+TAVILY_API_KEY={{ includeTemplate "secret.tmpl" (list "tavily_api_key" "Password") }}
 
-DISCORD_HOME_CHANNEL={{ (keepassxc "Discord (Uriel) :: Channel ID (#general)").Password }}
-DISCORD_ALLOWED_USERS={{ (keepassxc "Discord (Uriel) :: User ID (Stephen)").Password }}
+DISCORD_HOME_CHANNEL={{ includeTemplate "secret.tmpl" (list "discord_channel_general" "Password") }}
+DISCORD_ALLOWED_USERS={{ includeTemplate "secret.tmpl" (list "discord_user_id_stephen" "Password") }}
 
 TERMINAL_MODAL_IMAGE=nikolaik/python-nodejs:python3.11-nodejs20
 TERMINAL_TIMEOUT=60

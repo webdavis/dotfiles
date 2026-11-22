@@ -8,7 +8,7 @@ set -euo pipefail
 readonly key_file={{ .chezmoi.config.age.identity | quote }}
 readonly expected_recipient={{ .chezmoi.config.age.recipient | quote }}
 readonly keepassxc_database={{ .chezmoi.config.keepassxc.database | quote }}
-readonly keepassxc_entry="chezmoi :: Private Key :: age"
+readonly keepassxc_entry={{ .secrets.chezmoi_age_key | quote }}
 readonly runbook="docs/runbooks/age-key.md"
 readonly age_secret_key_pattern='^AGE-SECRET-KEY-(PQ-)?1[A-Z0-9]+'
 

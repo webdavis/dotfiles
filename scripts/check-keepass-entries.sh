@@ -8,8 +8,7 @@ dotfiles_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
 readonly chezmoi_config_template="$dotfiles_directory/.chezmoi.toml.tmpl"
-readonly keepassxc_reference_pattern='keepassxc[A-Za-z]* +"[^"$]+"'
-readonly keepassxc_variable_reference_pattern='keepassxc[A-Za-z]* +(\$[A-Za-z0-9_.]+|\([^")]*("[^"]*")?)'
+readonly secrets_list="$dotfiles_directory/.chezmoidata/secrets.yaml"
 readonly exit_all_found=0
 readonly exit_entries_missing=1
 readonly exit_could_not_check=2
@@ -33,19 +32,25 @@ database_path() {
   sed -n "s/^  database = '\(.*\)'$/\1/p" "$chezmoi_config_template"
 }
 
-references_as_file_and_title() {
-  git -C "$dotfiles_directory" grep -o -E "$keepassxc_reference_pattern" -- '*.tmpl' '**/modify_*' 'modify_*' ':!docs' |
-    sed -E 's/^([^:]+):keepassxc[A-Za-z]* +"(.*)"$/\1\t\2/'
+titles_in_the_secrets_list() {
+  yq -r '.secrets[] | (select(kind == "map") | .title) // .' "$secrets_list" | sort -u
 }
 
-references_read_through_a_variable() {
-  git -C "$dotfiles_directory" grep -o -E "$keepassxc_variable_reference_pattern" -- '*.tmpl' '**/modify_*' 'modify_*' ':!docs' |
-    sed -E 's/^([^:]+):keepassxc[A-Za-z]* +(.*)$/\2 in \1/' | sort -u || true
+parts_in_the_secrets_list_as_title_kind_and_name() {
+  local part_kind
+  for part_kind in attributes attachments; do
+    part_kind=$part_kind yq -r '.secrets[] | select(kind == "map" and has(strenv(part_kind))) | .[strenv(part_kind)][] | [(parent | parent | .title), strenv(part_kind), .] | @tsv' "$secrets_list" || return 1
+  done
 }
 
-titles_in() {
-  local references=$1
-  printf '%s\n' "$references" | cut -f2 | sort -u
+ask_for_the_database_password() {
+  local database=$1
+  read -rs -p "Enter password to unlock $database: " database_password </dev/tty
+  printf '\n' >&2
+}
+
+run_keepassxc_cli_unlocked() {
+  printf '%s\n' "$database_password" | keepassxc-cli "$@"
 }
 
 where_each_title_is_found() {
@@ -64,6 +69,33 @@ where_each_title_is_found() {
       else print $0 "\t✗ " count[$0] " entries share this title"
     }
   ' <(printf '%s\n' "$entry_names") <(printf '%s\n' "$titles")
+}
+
+path_of_the_entry_titled() {
+  local entry_names=$1 title=$2
+  printf '%s\n' "$entry_names" | awk -v title="$title" '
+    /^Recycle Bin\// { next }
+    { name = $0; sub(/.*\//, "", name); if (name == title) { print; exit } }
+  '
+}
+
+entry_holds_the_part() {
+  local database=$1 path=$2 kind=$3 name=$4
+  if [[ $kind == attributes ]]; then
+    run_keepassxc_cli_unlocked show --quiet --attributes "$name" "$database" "$path" >/dev/null 2>&1
+  else
+    run_keepassxc_cli_unlocked attachment-export --quiet --stdout "$database" "$path" "$name" >/dev/null 2>&1
+  fi
+}
+
+where_each_part_is_missing() {
+  local database=$1 entry_names=$2 parts=$3 title kind name path
+  while IFS=$'\t' read -r title kind name; do
+    [[ -n $title ]] || continue
+    path="$(path_of_the_entry_titled "$entry_names" "$title")"
+    [[ -n $path ]] || continue
+    entry_holds_the_part "$database" "$path" "$kind" "$name" || printf '%s\t✗ no %s named %s\n' "$title" "${kind%s}" "$name"
+  done <<<"$parts"
 }
 
 widest_title() {
@@ -89,34 +121,28 @@ print_row() {
   printf '%s %-*s  %s\n' "$bullet" "$width" "$expected" "$found"
 }
 
-print_unchecked_references() {
-  local width=$1 unchecked reference
-  unchecked="$(references_read_through_a_variable)"
-  [[ -n $unchecked ]] || return 0
-  printf '\n'
-  while IFS= read -r reference; do
-    printf '%s%s%s\n' "$yellow" "$(print_row "$width" "$reference" 'not checked')" "$reset"
-  done <<<"$unchecked"
-}
-
 main() {
-  local database references titles entry_names results expected found width title_count issue_count=0
+  local database titles parts entry_names results missing_parts expected found width title_count issue_count=0
   database="$(database_path)"
   [[ -n $database ]] || fail_to_check no-database "no keepassxc database is set in $chezmoi_config_template"
-  references="$(references_as_file_and_title)" || fail_to_check git-grep "could not read the templates"
-  [[ -n $references ]] || fail_to_check no-references "found no keepassxc references in the templates"
-  titles="$(titles_in "$references")"
-  entry_names="$(keepassxc-cli ls --recursive --flatten "$database")" || fail_to_check keepassxc "could not list $database"
+  titles="$(titles_in_the_secrets_list)" || fail_to_check secrets-list "could not read $secrets_list"
+  [[ -n $titles ]] || fail_to_check no-secrets "$secrets_list names no entries"
+  parts="$(parts_in_the_secrets_list_as_title_kind_and_name)" || fail_to_check secrets-list "could not read $secrets_list"
+  ask_for_the_database_password "$database"
+  entry_names="$(run_keepassxc_cli_unlocked ls --quiet --recursive --flatten "$database")" || fail_to_check keepassxc "could not list $database"
   [[ -n $entry_names ]] || fail_to_check empty-database "keepassxc-cli listed no entries in $database"
   results="$(where_each_title_is_found "$entry_names" "$titles")"
-  unset entry_names
+  missing_parts="$(where_each_part_is_missing "$database" "$entry_names" "$parts")"
+  unset entry_names database_password
+  if [[ -n $missing_parts ]]; then
+    results="${results:+$results$'\n'}$missing_parts"
+  fi
   title_count="$(printf '%s\n' "$titles" | wc -l | tr -d ' ')"
   width="$(widest_title "$titles")"
 
-  report_section 'KeePass entry check' "$title_count entries the templates read"
+  report_section 'KeePass entry check' "$title_count entries the secrets list names"
   if [[ -z $results ]]; then
     printf '  %s%s%s\n' "$green" "success: all $title_count found" "$reset"
-    print_unchecked_references "$width"
     exit "$exit_all_found"
   fi
   printf '\n'
@@ -127,7 +153,6 @@ main() {
   done < <(printf '%s\n' "$results")
   printf '\n'
   printf '  %s%s%s%s\n' "$yellow" "$italic" "oops! $issue_count of $title_count needs fixing!" "$reset"
-  print_unchecked_references "$width"
   exit "$exit_entries_missing"
 }
 

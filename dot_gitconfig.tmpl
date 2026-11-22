@@ -4,7 +4,7 @@
 [user]
   name = Stephen A. Davis
   email = 23553256+webdavis@users.noreply.github.com
-  signingkey = {{ keepassxcAttribute "GPG :: Signing Key (github-webdavis)" "Public Signing Subkey ID" }}
+  signingkey = {{ includeTemplate "secret.tmpl" (list "gpg_signing_key" "signing_subkey_id") }}
 
 [github]
   username = webdavis

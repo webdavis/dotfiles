@@ -5,8 +5,8 @@
     "command" "uvx"
     "args" (list "workspace-mcp" "--tool-tier" "complete")
     "env" (dict
-      "GOOGLE_OAUTH_CLIENT_ID" ((keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").UserName)
-      "GOOGLE_OAUTH_CLIENT_SECRET" ((keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").Password)
+      "GOOGLE_OAUTH_CLIENT_ID" (includeTemplate "secret.tmpl" (list "google_workspace_mcp_oauth" "UserName"))
+      "GOOGLE_OAUTH_CLIENT_SECRET" (includeTemplate "secret.tmpl" (list "google_workspace_mcp_oauth" "Password"))
       "OAUTHLIB_INSECURE_TRANSPORT" "1") -}}
 
 {{- /* --- stable: the Neovim MCP server. `--connect auto` connects to every
@@ -76,6 +76,6 @@
     "env" (dict
       "YNAB_ALLOW_WRITES" "1"
       "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
-      "YNAB_API_TOKEN" ((keepassxc "YNAB :: Personal Access Token").Password)) -}}
+      "YNAB_API_TOKEN" (includeTemplate "secret.tmpl" (list "ynab_personal_access_token" "Password"))) -}}
 
 {{- dict "workspace-mcp" $workspaceMcp "nvim" $nvimMcp "scalebar" $scalebarMcp "ynab" $ynabMcp | toJson -}}

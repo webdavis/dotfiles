@@ -1,9 +1,8 @@
-{{- $entry := "temporal-cloud-broccoli-api-key" -}}
-{{- $login := keepassxc $entry -}}
+{{- $entry := "temporal_cloud_broccoli" -}}
 [profile.broccoli]
-address = "{{ $login.URL }}"
-api_key = "{{ $login.Password }}"
-namespace = "{{ keepassxcAttribute $entry "namespace" }}"
+address = "{{ includeTemplate "secret.tmpl" (list $entry "URL") }}"
+api_key = "{{ includeTemplate "secret.tmpl" (list $entry "Password") }}"
+namespace = "{{ includeTemplate "secret.tmpl" (list $entry "namespace") }}"
 
 [profile.broccoli.codec]
-endpoint = "{{ keepassxcAttribute $entry "codec-server-url" }}"
+endpoint = "{{ includeTemplate "secret.tmpl" (list $entry "codec_url") }}"

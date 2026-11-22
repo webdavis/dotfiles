@@ -38,8 +38,8 @@
 {{- /* Whole entries, since Codex rejects a server missing its command or url. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "args") (list "workspace-mcp" "--tool-tier" "complete") $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_ID") (keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").UserName $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_SECRET") (keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").Password $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_ID") (includeTemplate "secret.tmpl" (list "google_workspace_mcp_oauth" "UserName")) $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_SECRET") (includeTemplate "secret.tmpl" (list "google_workspace_mcp_oauth" "Password")) $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "OAUTHLIB_INSECURE_TRANSPORT") "1" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "command") (printf "%s/.local/bin/cua-driver" $home) $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
@@ -61,7 +61,7 @@
       "env" (dict
         "YNAB_ALLOW_WRITES" "1"
         "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
-        "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
+        "YNAB_API_TOKEN" (includeTemplate "secret.tmpl" (list "ynab_personal_access_token" "Password")))) $merged -}}
 
 {{- /* The media skills stay in the store for the media profile, so plain Codex turns them off by name.
        Entries Codex wrote for other skills stay. The list is only set when it differs from the live one,

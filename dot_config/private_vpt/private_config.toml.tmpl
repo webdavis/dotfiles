@@ -10,7 +10,7 @@ checker = "whisply"
 
 [engines.whisply]
 command = ["{{ joinPath .chezmoi.homeDir ".local/bin/whisply" }}"]
-hf_token = {{ (keepassxc "hugging-face-access-token").Password | toToml }}
+hf_token = {{ includeTemplate "secret.tmpl" (list "hugging_face_access_token" "Password") | toToml }}
 
 [note]
 profile = "obsidian"
@@ -30,7 +30,7 @@ command = ["{{ joinPath .chezmoi.homeDir ".cargo/bin/dam" }}", "new", "--json", 
 final_exit_codes = [2, 4, 5]
 
 [actions.env]
-DAM_TOKEN = {{ (keepassxc "damnit-token-vpt").Password | toToml }}
+DAM_TOKEN = {{ includeTemplate "secret.tmpl" (list "damnit_token_vpt" "Password") | toToml }}
 
 [actions.owner_words]
 me = "my-commitment"

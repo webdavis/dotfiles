@@ -6,7 +6,7 @@ urgent = "priority"
 [plugins.phone]
 enabled = true
 type = "moshi"
-device_token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
+device_token = {{ includeTemplate "secret.tmpl" (list "moshi_hook_device_token" "Password") | toToml }}
 card_while_watching = false
 ack_deadline = "5s"
 marker_file = "~/.local/state/pns/phone-attention.marker"
@@ -14,29 +14,29 @@ marker_file = "~/.local/state/pns/phone-attention.marker"
 [plugins.log]
 enabled = true
 type = "discord"
-bot_token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
+bot_token = {{ includeTemplate "secret.tmpl" (list "discord_bot_token_pns" "Password") | toToml }}
 
 [plugins.log.keys]
-pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}
-posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
-priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
+pns-events = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_pns_events" "Password") | toToml }}
+posture-pages = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_posture_pages" "Password") | toToml }}
+priority = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_priority" "Password") | toToml }}
 
 [plugins.log.channels]
-default = {{ (keepassxc "Discord (Uriel) :: Channel ID (#github-notifications)").Password | toToml }}
-casually-concerned = {{ (keepassxc "Discord (Uriel) :: Channel ID (#casually-concerned-dev)").Password | toToml }}
-dotfiles = {{ (keepassxc "Discord (Uriel) :: Channel ID (#dotfiles-dev)").Password | toToml }}
-essential-feed-case-study = {{ (keepassxc "Discord (Uriel) :: Channel ID (#essential-feed-case-study-dev)").Password | toToml }}
-homelab = {{ (keepassxc "Discord (Uriel) :: Channel ID (#homelab-dev)").Password | toToml }}
-justdavis-ansible = {{ (keepassxc "Discord (Uriel) :: Channel ID (#justdavis-ansible-dev)").Password | toToml }}
-netpulse = {{ (keepassxc "Discord (Uriel) :: Channel ID (#netpulse-dev)").Password | toToml }}
-plantpulse = {{ (keepassxc "Discord (Uriel) :: Channel ID (#plantpulse-dev)").Password | toToml }}
-pns = {{ (keepassxc "Discord (Uriel) :: Channel ID (#pns-dev)").Password | toToml }}
-pns-events = {{ (keepassxc "Discord (Uriel) :: Channel ID (#pns-events)").Password | toToml }}
-posture = {{ (keepassxc "Discord (Uriel) :: Channel ID (#posture-dev)").Password | toToml }}
-posture-pages = {{ (keepassxc "Discord (Uriel) :: Channel ID (#posture-pages)").Password | toToml }}
-priority = {{ (keepassxc "Discord (Uriel) :: Channel ID (#priority)").Password | toToml }}
-scalebar = {{ (keepassxc "Discord (Uriel) :: Channel ID (#scalebar-dev)").Password | toToml }}
-uu = {{ (keepassxc "Discord (Uriel) :: Channel ID (#uu-dev)").Password | toToml }}
+default = {{ includeTemplate "secret.tmpl" (list "discord_channel_github_notifications" "Password") | toToml }}
+casually-concerned = {{ includeTemplate "secret.tmpl" (list "discord_channel_casually_concerned_dev" "Password") | toToml }}
+dotfiles = {{ includeTemplate "secret.tmpl" (list "discord_channel_dotfiles_dev" "Password") | toToml }}
+essential-feed-case-study = {{ includeTemplate "secret.tmpl" (list "discord_channel_essential_feed_case_study_dev" "Password") | toToml }}
+homelab = {{ includeTemplate "secret.tmpl" (list "discord_channel_homelab_dev" "Password") | toToml }}
+justdavis-ansible = {{ includeTemplate "secret.tmpl" (list "discord_channel_justdavis_ansible_dev" "Password") | toToml }}
+netpulse = {{ includeTemplate "secret.tmpl" (list "discord_channel_netpulse_dev" "Password") | toToml }}
+plantpulse = {{ includeTemplate "secret.tmpl" (list "discord_channel_plantpulse_dev" "Password") | toToml }}
+pns = {{ includeTemplate "secret.tmpl" (list "discord_channel_pns_dev" "Password") | toToml }}
+pns-events = {{ includeTemplate "secret.tmpl" (list "discord_channel_pns_events" "Password") | toToml }}
+posture = {{ includeTemplate "secret.tmpl" (list "discord_channel_posture_dev" "Password") | toToml }}
+posture-pages = {{ includeTemplate "secret.tmpl" (list "discord_channel_posture_pages" "Password") | toToml }}
+priority = {{ includeTemplate "secret.tmpl" (list "discord_channel_priority" "Password") | toToml }}
+scalebar = {{ includeTemplate "secret.tmpl" (list "discord_channel_scalebar_dev" "Password") | toToml }}
+uu = {{ includeTemplate "secret.tmpl" (list "discord_channel_uu_dev" "Password") | toToml }}
 
 [plugins.banner]
 enabled = true
@@ -45,14 +45,14 @@ type = "macos"
 [plugins.lights]
 enabled = true
 type = "hue"
-bridge_host = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
-api_key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
-certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
+bridge_host = {{ includeTemplate "secret.tmpl" (list "openhue_api_key" "UserName") | toToml }}
+api_key = {{ includeTemplate "secret.tmpl" (list "openhue_api_key" "Password") | toToml }}
+certificate = {{ includeTemplate "secret.tmpl" (list "openhue_api_key" "certificate_pin") | toToml }}
 rooms = ["3F - Studio", "2F - Kitchen"]
 
 [plugins.github]
 enabled = true
-personal_access_token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notifications)").Password | toToml }}
+personal_access_token = {{ includeTemplate "secret.tmpl" (list "github_pat_pns_notifications" "Password") | toToml }}
 poll_interval = "60s"
 webhook_port = 8648
 
@@ -70,9 +70,9 @@ reading_max_age = "15s"
 enabled = true
 type = "unifi"
 url = "https://192.168.1.1"
-certificate = {{ (keepassxc "unifi-udr-tls-fingerprint").Password | toToml }}
+certificate = {{ includeTemplate "secret.tmpl" (list "unifi_udr_tls_fingerprint" "Password") | toToml }}
 device_hostname = "mister"
-api_key = {{ (keepassxc (printf "unifi-udr-api-key-%s" .chezmoi.hostname)).Password | toToml }}
+api_key = {{ includeTemplate "secret.tmpl" (list (printf "unifi_udr_api_key_%s" .chezmoi.hostname) "Password") | toToml }}
 
 [gateway]
 enabled = true
