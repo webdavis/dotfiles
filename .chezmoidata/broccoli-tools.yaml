@@ -44,6 +44,7 @@ broccoli:
         - "investigate"
         - "owasp-security"
         - "research"
+        - "rex"
         - "save-ticket-to-kb"
         - "slack-messaging"
         - "slack-search"
