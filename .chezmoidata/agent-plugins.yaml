@@ -85,6 +85,7 @@ plugins:
             - "fff-multi-grep"
         - package: "omp-cache-meter"
         - package: "@jetserge/pi-contextual-stash"
+        - package: "omp-clear-screen"
       ask: []
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"

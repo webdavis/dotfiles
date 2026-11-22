@@ -90,6 +90,7 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 `sbs` and `sbe` start a Broccoli session on omp's `broccoli` profile. `sbs --claude` and `sbe --claude` start it on Claude Code, with the same plugin folders. `broccoli.omp` lists what the omp profile loads beyond those folders:
 
 - Plugin: an entry under `broccoli.omp.plugins`, shaped as in `agent-plugins.yaml`. To remove one, delete its entry, then run `omp --profile broccoli plugin uninstall <plugin>@<marketplace>`.
+- Extension from npm: an entry under `broccoli.omp.extensions`, with its npm name as `package`. To remove one, delete its entry, then run `omp --profile broccoli plugin uninstall <package>`.
 - Skill: its name under `auto` or `manual` in `broccoli.omp.tech_support`, or in `broccoli.omp.engineering` when only an engineering session needs it. A skill named in neither list is absent from the session.
 - A skill whose plain name another plugin holds is named with its prefix, as `omp --profile broccoli skill list` prints it.
 
