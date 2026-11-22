@@ -76,6 +76,11 @@ includes = [
   "private_Library/private_Application Support/espanso/**/*.yml",
 ]
 
+[formatter.secret-lookup-check]
+command = "scripts/treefmt/secret-lookup-check.sh"
+includes = ["*.tmpl", "modify_*", "**/modify_*"]
+excludes = [".chezmoitemplates/secret.tmpl"]
+
 [formatter.espanso-match-render]
 command = "scripts/treefmt/espanso-match-render.sh"
 includes = [
