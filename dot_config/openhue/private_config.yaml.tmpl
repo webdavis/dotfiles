@@ -1,2 +1,2 @@
-bridge: {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName }}
-key: {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password }}
+bridge: {{ includeTemplate "secret.tmpl" (list "openhue_api_key" "UserName") }}
+key: {{ includeTemplate "secret.tmpl" (list "openhue_api_key" "Password") }}

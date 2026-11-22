@@ -83,7 +83,7 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 - Package manager provides it: the entry goes under `broccoli.packages`.
 - Ships its own installer: add an installer to the script under `.chezmoiscripts/` that installs the `npx` entries of `.chezmoidata/broccoli-tools.yaml`. Shape it and call it like the installers already in that script, and keep it from editing shell startup files, as they are.
 - Skill: an `npx` entry under the key of the folder that loads it. An entry with no path after the repo installs every skill in that repo. That script removes any skill whose entry is gone, so a removed entry needs no other step.
-- MCP server: an entry under that key's `mcp_servers`, with the tools that must ask first in its `ask` list. To remove one, clear any login with `/mcp` in a session that loads the folder, then delete its entry. The next apply drops the server and its ask rules. To keep an entry but stop loading its server, set `enabled: false` on it.
+- MCP server: an entry under that key's `mcp_servers`, with the tools that must ask first in its `ask` list. To remove one, clear any login with `/mcp` in a session that loads the folder, then delete its entry. The next apply drops the server and its ask rules. To keep an entry but stop loading its server, set `enabled: false` on it. A header that carries a secret gives its short name as `secret` and the part to read as `field`.
 
 ### omp
 
@@ -122,6 +122,13 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 
 - Options, keymaps and autocmds: `dot_config/nvim/lua/config/`.
 - Our own Lua modules: `dot_config/nvim/lua/custom_api/`.
+
+## Secrets
+
+- `.chezmoidata/secrets.yaml` names every vault entry the dotfiles read: a short name, then the entry's title. An entry read for an attribute or an attached file is a block with its `title`, and each one under `attributes` or `attachments` as a short name and its real name.
+- A template reads one with `includeTemplate "secret.tmpl" (list "<name>" "<field>")`. `Password`, `UserName` and `URL` read those fields. Any other word is a short name the entry lists.
+- `just lint` refuses a template that reads the vault any other way.
+- `just check-keepass` checks that the vault holds each named entry.
 
 ## Editing
 

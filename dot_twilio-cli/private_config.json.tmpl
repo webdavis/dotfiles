@@ -1,13 +1,12 @@
-{{- $entry := "twilio-webdavis-api-access" -}}
 {
   "email": {},
   "prompts": {},
   "projects": [],
   "profiles": {
     "webdavis": {
-      "accountSid": {{ keepassxcAttribute "twilio-webdavis-account-login" "account-sid" | quote }},
-      "apiKey": {{ keepassxcAttribute $entry "api-key-sid" | quote }},
-      "apiSecret": {{ (keepassxc $entry).Password | quote }},
+      "accountSid": {{ includeTemplate "secret.tmpl" (list "twilio_account_login" "account_sid") | quote }},
+      "apiKey": {{ includeTemplate "secret.tmpl" (list "twilio_api_access" "api_key_sid") | quote }},
+      "apiSecret": {{ includeTemplate "secret.tmpl" (list "twilio_api_access" "Password") | quote }},
       "id": "webdavis"
     }
   },

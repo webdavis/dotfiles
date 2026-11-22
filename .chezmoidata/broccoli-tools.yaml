@@ -212,11 +212,11 @@ broccoli:
         url: https://mcp.devin.ai/mcp
         headers:
           Authorization:
-            vault: devin-broccoli-api-access
-            field: personal-access-token
+            secret: devin_broccoli
+            field: personal_access_token
             prefix: 'Bearer '
           X-Org-Id:
-            vault: devin-broccoli-api-access
+            secret: devin_broccoli
             field: UserName
         ask:
           - devin_session_create
@@ -236,7 +236,7 @@ broccoli:
         url: https://api.smith.langchain.com/mcp
         headers:
           X-Api-Key:
-            vault: langsmith-broccoli-api-key
+            secret: langsmith_broccoli
             field: Password
       deepgram:
         enabled: false

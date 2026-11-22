@@ -27,7 +27,7 @@ matches:
 {{- if (env "CI") }}
     replace: "FAKE_READWISE_FEED_EMAIL"
 {{- else }}
-    replace: {{ keepassxcAttribute "readwise" "feed-email-address" | quote }}
+    replace: {{ includeTemplate "secret.tmpl" (list "readwise" "feed_email_address") | quote }}
 {{- end }}
 
   - trigger: ",,wa"
@@ -43,19 +43,19 @@ matches:
 {{- if (env "CI") }}
     replace: "FAKE_ADDRESS"
 {{- else }}
-    replace: {{ (keepassxc "Personal :: Address").Password | quote }}
+    replace: {{ includeTemplate "secret.tmpl" (list "personal_address" "Password") | quote }}
 {{- end }}
 
   - trigger: ",,pn"
 {{- if (env "CI") }}
     replace: "FAKE_PHONE"
 {{- else }}
-    replace: {{ (keepassxc "Personal :: Phone").Password | quote }}
+    replace: {{ includeTemplate "secret.tmpl" (list "personal_phone" "Password") | quote }}
 {{- end }}
 
   - trigger: ",,pf"
 {{- if (env "CI") }}
     replace: "FAKE_PHONE_FORMATTED"
 {{- else }}
-    replace: {{ (keepassxc "Personal :: Phone").UserName | quote }}
+    replace: {{ includeTemplate "secret.tmpl" (list "personal_phone" "UserName") | quote }}
 {{- end }}

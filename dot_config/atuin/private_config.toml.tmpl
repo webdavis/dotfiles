@@ -6,7 +6,7 @@ enter_accept = true
 secrets_filter = true
 
 history_filter = [
-  {{ (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password | quote }},
+  {{ includeTemplate "secret.tmpl" (list "histignore_regex" "Password") | quote }},
 ]
 
 [sync]

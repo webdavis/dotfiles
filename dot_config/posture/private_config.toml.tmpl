@@ -26,6 +26,6 @@ url = "http://127.0.0.1:8644/webhooks"
 critical_copy_route = "explain"
 
 [notify.hermes.keys]
-posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
-priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
-explain = {{ (keepassxc "Hermes :: Webhook Secret (#explain)").Password | toToml }}
+posture-pages = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_posture_pages" "Password") | toToml }}
+priority = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_priority" "Password") | toToml }}
+explain = {{ includeTemplate "secret.tmpl" (list "hermes_webhook_explain" "Password") | toToml }}

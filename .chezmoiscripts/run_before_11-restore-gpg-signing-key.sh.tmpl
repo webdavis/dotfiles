@@ -1,6 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{- $signingKeyEntry := "GPG :: Signing Key (github-webdavis)" -}}
-{{- $signingKeyId := keepassxcAttribute $signingKeyEntry "Public Signing Subkey ID" -}}
+{{- $signingKeyId := includeTemplate "secret.tmpl" (list "gpg_signing_key" "signing_subkey_id") -}}
 {{- $signingKeyStatus := output "sh" "-c" (printf "gpg --list-secret-keys %s >/dev/null 2>&1 && echo installed || echo missing" $signingKeyId) | trim -}}
 #!/usr/bin/env bash
 
@@ -17,7 +16,7 @@ signing_key_is_installed() {
 
 import_signing_key() {
   gpg --batch --import <<'PRIVATE_KEY'
-{{ keepassxcAttachment $signingKeyEntry "private-key.asc" }}
+{{ includeTemplate "secret.tmpl" (list "gpg_signing_key" "private_key") }}
 PRIVATE_KEY
 }
 {{- end }}

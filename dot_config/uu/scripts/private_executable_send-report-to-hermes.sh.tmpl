@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly route_url="http://127.0.0.1:8644/webhooks/uu-runs"
-readonly signing_key='{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}'
+readonly signing_key='{{ includeTemplate "secret.tmpl" (list "hermes_webhook_uu_runs" "Password") }}'
 readonly post_time_limit_seconds=10
 readonly delivered_status_pattern='^2[0-9][0-9]$'
 readonly exit_failure=1

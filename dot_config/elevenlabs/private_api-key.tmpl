@@ -1,1 +1,1 @@
-{{ (keepassxc "ElevenLabs :: API Key").Password }}
+{{ includeTemplate "secret.tmpl" (list "elevenlabs_api_key" "Password") }}

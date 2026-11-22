@@ -1,5 +1,5 @@
 {{- $profile := dict
-    "api_key" (keepassxc "langsmith-broccoli-api-key").Password
+    "api_key" (includeTemplate "secret.tmpl" (list "langsmith_broccoli" "Password"))
     "api_url" "https://api.smith.langchain.com"
     "oauth" (dict) -}}
 {{ dict "current_profile" "broccoli" "profiles" (dict "broccoli" $profile) | toPrettyJson }}

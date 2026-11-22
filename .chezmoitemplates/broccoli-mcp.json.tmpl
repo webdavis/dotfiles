@@ -10,14 +10,7 @@
 {{-       if ne (kindOf $value) "map" -}}
 {{-         $headers = set $headers $header $value -}}
 {{-       else -}}
-{{-         $secret := "" -}}
-{{-         if eq $value.field "UserName" -}}
-{{-           $secret = (keepassxc $value.vault).UserName -}}
-{{-         else if eq $value.field "Password" -}}
-{{-           $secret = (keepassxc $value.vault).Password -}}
-{{-         else -}}
-{{-           $secret = keepassxcAttribute $value.vault $value.field -}}
-{{-         end -}}
+{{-         $secret := includeTemplate "secret.tmpl" (list $value.secret $value.field) -}}
 {{-         $headers = set $headers $header (printf "%s%s" (get $value "prefix" | default "") $secret) -}}
 {{-       end -}}
 {{-     end -}}

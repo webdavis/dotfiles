@@ -20,7 +20,7 @@ matches:
 {{- if (env "CI") }}
     replace: "https://app.slack.com/client/FAKE_TEAM_ID/dms"
 {{- else }}
-    replace: "https://app.slack.com/client/{{ keepassxcAttribute "slack-broccoli-app-stephen-pwe" "team-id" }}/dms"
+    replace: "https://app.slack.com/client/{{ includeTemplate "secret.tmpl" (list "slack_broccoli_app" "team_id") }}/dms"
 {{- end }}
 
   - trigger: ",,but"
@@ -28,7 +28,7 @@ matches:
 {{- if (env "CI") }}
     replace: "https://cloud.temporal.io/namespaces/FAKE_NAMESPACE/workflows"
 {{- else }}
-    replace: "https://cloud.temporal.io/namespaces/{{ keepassxcAttribute "temporal-cloud-broccoli-api-key" "namespace" }}/workflows"
+    replace: "https://cloud.temporal.io/namespaces/{{ includeTemplate "secret.tmpl" (list "temporal_cloud_broccoli" "namespace") }}/workflows"
 {{- end }}
 
   - trigger: ",,buc"

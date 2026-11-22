@@ -57,11 +57,11 @@
 {{- range $name, $fields := $declared -}}
 {{-   $channel := default $name (get $fields "channel") -}}
 {{-   $route := dict
-        "secret" (keepassxc (printf "Hermes :: Webhook Secret (#%s)" $name)).Password
+        "secret" (includeTemplate "secret.tmpl" (list (printf "hermes_webhook_%s" (replace "-" "_" $name)) "Password"))
         "deliver" "discord"
         "prompt" (get $fields "prompt")
         "deliver_extra" (dict
-          "chat_id" (keepassxc (printf "Discord (Uriel) :: Channel ID (#%s)" $channel)).Password) -}}
+          "chat_id" (includeTemplate "secret.tmpl" (list (printf "discord_channel_%s" (replace "-" "_" $channel)) "Password"))) -}}
 {{-   if not (get $fields "agent") -}}
 {{-     $route = set $route "deliver_only" true -}}
 {{-   end -}}
@@ -76,7 +76,7 @@
 {{- $merged = deleteValueAtPath "hooks.pre_approval_request" $merged -}}
 {{- $merged = deleteValueAtPath "hooks.post_approval_response" $merged -}}
 
-{{- $merged = setValueAtPath (list "tts" "elevenlabs" "voice_id") (keepassxc "ElevenLabs :: Voice ID").Password $merged -}}
+{{- $merged = setValueAtPath (list "tts" "elevenlabs" "voice_id") (includeTemplate "secret.tmpl" (list "elevenlabs_voice_id" "Password")) $merged -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}
 {{- /* The check uses a fresh parse because setValueAtPath mutates the map it gets. */ -}}
