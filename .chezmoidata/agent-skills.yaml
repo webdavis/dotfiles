@@ -37,8 +37,6 @@ skills:
         - repo: "slackapi/slack-skills-plugin/skills/slack-search"
         - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
           on_demand: true
-        - repo: "tt-a1i/archify"
-          on_demand: true
         - repo: "webdavis/scalebar"
           on_demand: true
         - repo: "webdavis/skills/plugins/tiktok-crawling/skills/tiktok-crawling"
