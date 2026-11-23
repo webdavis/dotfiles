@@ -46,6 +46,8 @@ readonly clawhub_registry="https://clawhub.ai"
 readonly mark_on_demand_skills_script="$HOME/.config/uu/scripts/mark-on-demand-skills.sh"
 # One line per entry: <agents, comma-joined> <owner/repo[/path]> <hermes profiles, comma-joined, or ->
 readonly npx_entries={{ join "\n" $npxEntries | squote }}
+# One line per npx repository whose skills omp loads and Claude Code does not.
+readonly omp_only_npx_repositories={{ join "\n" $d.omp_repositories | squote }}
 # One line per entry: <slug> <store name> <linked into Claude Code: yes|no> <hermes profiles or ->
 readonly clawhub_entries={{ join "\n" $clawhubEntries | squote }}
 # One line per entry: <store name or glob> <linked into Claude Code: yes|no> <hermes profiles or ->
@@ -324,6 +326,15 @@ link_claude_code_npx_skills_into_omp() {
   done 3< <(non_blank_lines_of "$npx_entries")
 }
 
+link_omp_only_npx_skills() {
+  local repository skill
+  while read -r -u 3 repository; do
+    while read -r skill; do
+      link_skill "$skill" "$omp_skills_folder" "$omp_link_prefix" "omp"
+    done < <(lock_skill_names_of "$repository")
+  done 3< <(non_blank_lines_of "$omp_only_npx_repositories")
+}
+
 link_store_skills() {
   local match into_claude profiles
   while read -r -u 3 match into_claude profiles; do
@@ -422,6 +433,7 @@ main() {
   install_missing_clawhub_entries
   link_store_skills
   link_claude_code_npx_skills_into_omp
+  link_omp_only_npx_skills
   link_media_skills
   mark_on_demand_skills_in_codex
 

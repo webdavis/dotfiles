@@ -54,12 +54,17 @@
       (dict "key" "claude" "agents" (list "claude-code") "claude" true "codex" false)
       (dict "key" "codex" "agents" (list "codex") "claude" false "codex" true)
       (dict "key" "codex_and_claude" "agents" (list "claude-code" "codex") "claude" true "codex" true)
-      (dict "key" "media" "agents" (list "codex") "claude" false "codex" true) -}}
+      (dict "key" "media" "agents" (list "codex") "claude" false "codex" true)
+      (dict "key" "omp" "agents" (list "codex") "claude" false "codex" false) -}}
 {{- $npx := list -}}
 {{- $clawhub := list -}}
 {{- $linked := list -}}
 {{- $onDemandClaude := list -}}
 {{- $onDemandCodex := list -}}
+{{- /* The omp group stays out of ~/.claude/skills and is linked into omp's folder alone; Codex turns it off by name. */ -}}
+{{- $ompRepositories := list -}}
+{{- $ompNames := list -}}
+{{- $onDemandOmp := list -}}
 {{- /* The media group stays out of ~/.claude/skills and is linked into the media plugin folder instead;
        Codex keeps it in the store and turns it off outside the media profile. */ -}}
 {{- $mediaEntries := list -}}
@@ -82,6 +87,11 @@
 {{-     $npx = append $npx (dict "repo" .repo "source" $source "path" $path "agents" $group.agents "hermes" $hermes "names" $names "on_demand" $onDemand) -}}
 {{-     if and $onDemand $group.claude -}}{{- $onDemandClaude = concat $onDemandClaude $names -}}{{- end -}}
 {{-     if and $onDemand $group.codex -}}{{- $onDemandCodex = concat $onDemandCodex $names -}}{{- end -}}
+{{-     if eq $group.key "omp" -}}
+{{-       $ompRepositories = append $ompRepositories .repo -}}
+{{-       $ompNames = concat $ompNames $names -}}
+{{-       if $onDemand -}}{{- $onDemandOmp = concat $onDemandOmp $names -}}{{- end -}}
+{{-     end -}}
 {{-     if eq $group.key "media" -}}
 {{-       $mediaEntries = append $mediaEntries (dict "kind" "npx" "match" .repo) -}}
 {{-       $mediaNames = concat $mediaNames $names -}}
@@ -124,6 +134,9 @@
       "linked" $linked
       "on_demand_claude" $onDemandClaude
       "on_demand_codex" $onDemandCodex
+      "omp_repositories" $ompRepositories
+      "omp_names" $ompNames
+      "on_demand_omp" $onDemandOmp
       "media_entries" $mediaEntries
       "media_names" $mediaNames
       "elevenlabs_names" $elevenlabsNames
