@@ -15,6 +15,7 @@ skills:
     codex_and_claude:
       npx:
         - repo: "agamm/claude-code-owasp"
+          on_demand: true
         - repo: "blader/humanizer"
         - repo: "guwidoe/lobster-skill"
           on_demand: true
@@ -30,9 +31,13 @@ skills:
           hermes:
             - "lara"
           on_demand: true
-        - repo: "rjyo/moshi-skill"
+        - repo: "rjyo/moshi-skill/skills/moshi-best-practices"
           hermes:
             - "default"
+        - repo: "rjyo/moshi-skill/skills/play-developer-console"
+          hermes:
+            - "default"
+          on_demand: true
         - repo: "slackapi/slack-skills-plugin/skills/slack-messaging"
         - repo: "slackapi/slack-skills-plugin/skills/slack-search"
         - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
