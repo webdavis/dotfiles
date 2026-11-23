@@ -82,5 +82,17 @@
 {{-   if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
 {{-     fail (printf "posture_controls.yaml: record %q has no description; a page must name the control" $id) -}}
 {{-   end -}}
+{{-   if and (hasKey . "enabled") (not (kindIs "bool" (index . "enabled"))) -}}
+{{-     fail (printf "posture_controls.yaml: record %q declares enabled %v; it is true or false" $id (index . "enabled")) -}}
+{{-   end -}}
 {{- end -}}
-{{ toJson .posture.controls }}
+{{- $enabledControls := list -}}
+{{- range .posture.controls -}}
+{{-   if or (not (hasKey . "enabled")) (index . "enabled") -}}
+{{-     $enabledControls = append $enabledControls (omit . "enabled") -}}
+{{-   end -}}
+{{- end -}}
+{{- if eq (len $enabledControls) 0 -}}
+{{-   fail "posture_controls.yaml: every control is enabled: false; the poller refuses a zero-control file, so enable at least one" -}}
+{{- end -}}
+{{ toJson $enabledControls }}

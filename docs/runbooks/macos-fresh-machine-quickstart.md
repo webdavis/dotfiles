@@ -72,8 +72,10 @@ only activates after an interactive security consent. No supported command line 
 3. When prompted "LuLu would like to Filter Network Content", click Allow. This is the network-content filter consent,
    separate from the extension approval.
 4. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with `[activated enabled]`, and
-   `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID. The security-posture poller verifies the process
-   continuously (the `lulu_extension` record in `.chezmoidata/posture_controls.yaml`) and pages if it stops.
+   `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID.
+5. Turn on the security-posture poller's LuLu checks: set `enabled: true` on the `lulu_extension`,
+   `lulu_rule_tailscaled` and `lulu_rule_hermes_gateway` records in `.chezmoidata/posture_controls.yaml`, then apply.
+   The poller then verifies the process continuously and pages if it stops.
 
 ### LuLu rule creation
 
