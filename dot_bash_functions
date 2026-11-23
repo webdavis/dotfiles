@@ -188,6 +188,7 @@ start-broccoli-session() {
     )" "$@"
   else
     clauth start broccoli --settings "$HOME/.config/agents/broccoli-claude-settings.json" \
+      --append-system-prompt "$(cat ~/.omp/profiles/broccoli/agent/AGENTS.md)" \
       "${plugin_options[@]}" "$@"
   fi
 }
