@@ -273,7 +273,6 @@ packages:
           packages:
             - vpt
     uv:
-      - graphifyy
       - nano-pdf
       - pymobiledevice3
       - sherlock-project
