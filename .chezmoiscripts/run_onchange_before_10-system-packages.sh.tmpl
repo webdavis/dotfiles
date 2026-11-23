@@ -6,7 +6,6 @@
 {{- $trustedTaps := concat $brew.trusted_taps $work.homebrew.trusted_taps | uniq -}}
 {{- $formulae := concat $brew.formulae $work.homebrew.formulae | uniq -}}
 {{- $casks := concat $brew.casks $work.homebrew.casks | uniq -}}
-{{- $graphifyIsDeclared := has "graphifyy" .packages.macos.uv -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -23,12 +22,6 @@ readonly app_store_install_time_limit_seconds=180
 readonly timed_out_status=124
 readonly grace_seconds_before_kill=5
 readonly bulk_cleanup_limit="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"
-{{- if $graphifyIsDeclared }}
-readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
-readonly graphify_skill_bundle_directory="$graphify_claude_config_directory/skills/graphify"
-readonly graphify_executable="$HOME/.local/bin/graphify"
-readonly graphify_install_time_limit_seconds=60
-{{- end }}
 {{- if .packages.macos.fnm }}
 readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
 readonly npm_install_time_limit_seconds=180
@@ -403,52 +396,6 @@ install_uv_tool_on_python() {
   local python_version=$1 package=$2
   uv tool install --python "$python_version" "$package"
 }
-{{- if $graphifyIsDeclared }}
-
-something_other_than_a_directory_is_at() {
-  local path=$1
-  [[ -L $path || (-e $path && ! -d $path) ]]
-}
-
-graphify_claude_config_directory_is_missing() {
-  [[ ! -e $graphify_claude_config_directory ]]
-}
-
-a_non_empty_regular_file_is_at() {
-  local path=$1
-  [[ -f $path && -s $path && ! -L $path ]]
-}
-
-graphify_skill_bundle_is_complete() {
-  a_non_empty_regular_file_is_at "$graphify_skill_bundle_directory/SKILL.md" &&
-    a_non_empty_regular_file_is_at "$graphify_skill_bundle_directory/.graphify_version" &&
-    [[ -d $graphify_skill_bundle_directory/references ]]
-}
-
-install_graphify_skill_bundle() {
-  gtimeout "$graphify_install_time_limit_seconds" /usr/bin/env "CLAUDE_CONFIG_DIR=$graphify_claude_config_directory" \
-    "$graphify_executable" install --platform claude
-}
-
-seed_graphify_skill_bundle() {
-  local directory
-  for directory in "$HOME/.local" "$HOME/.local/share" "$HOME/.local/share/graphify" \
-    "$graphify_claude_config_directory" "$graphify_claude_config_directory/skills" \
-    "$graphify_skill_bundle_directory" "$graphify_skill_bundle_directory/references"; do
-    if something_other_than_a_directory_is_at "$directory"; then
-      report_line "error[unsafe-path]: graphify seed: refusing symlink or non-directory at $directory; existing data is preserved." >&2
-      return 1
-    fi
-  done
-
-  if graphify_claude_config_directory_is_missing; then
-    install_graphify_skill_bundle
-  elif ! graphify_skill_bundle_is_complete; then
-    report_line "error[incomplete-bundle]: graphify seed: incomplete or linked bundle at $graphify_claude_config_directory; preserving it for operator repair." >&2
-    return 1
-  fi
-}
-{{- end }}
 
 install_declared_uv_tools() {
   report_section 'uv' 'tool installs' >&2
@@ -457,9 +404,6 @@ install_declared_uv_tools() {
   install_uv_tool_on_python 3.12 {{ . | quote }}
 {{- else }}
   install_uv_tool {{ . | quote }}
-{{- end }}
-{{- if eq . "graphifyy" }}
-  seed_graphify_skill_bundle
 {{- end }}
 {{- end }}
 }

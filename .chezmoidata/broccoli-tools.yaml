@@ -79,7 +79,6 @@ broccoli:
     engineering:
       auto:
         - "api-and-interface-design"
-        - "archify"
         - "architect"
         - "arena"
         - "benchmark-checklist"

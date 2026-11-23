@@ -125,18 +125,6 @@ unsuccessful_runs_before_alert = 3
 
 [lane.cua-driver-skills.settings]
 
-[lane.graphify]
-after = ["uv"]
-builtin = "graphify"
-env = {}
-scheduled = true
-time_limit = "1 minute"
-unsuccessful_runs_before_alert = 3
-
-[lane.graphify.settings]
-platforms = ["claude"]
-config_dir = "{{ .chezmoi.homeDir }}/.local/share/graphify/claude"
-
 [lane.hermes-plugins]
 builtin = "hermes-plugins"
 env = {}
