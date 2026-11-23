@@ -54,7 +54,7 @@ plugins:
         - marketplace: "DietrichGebert/ponytail"
           plugins:
             - "ponytail@ponytail"
-        - marketplace: "kepano/obsidian-skills"
+        - marketplace: "obsidianmd/obsidian-skills"
           plugins:
             - "obsidian@obsidian-skills"
         - marketplace: "webdavis/pns"
@@ -96,7 +96,7 @@ plugins:
       - marketplace: "michael-denyer/pstack-claude"
         plugins:
           - "pstack@pstack-claude"
-      - marketplace: "kepano/obsidian-skills"
+      - marketplace: "obsidianmd/obsidian-skills"
         plugins:
           - "obsidian@obsidian-skills"
       - marketplace: "webdavis/pns"
