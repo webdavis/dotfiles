@@ -1,7 +1,6 @@
 ## Rules
 
 - Delete with `trash`, never `rm`.
-- To read a web page, run `scrapepage <url>`. It reads the tab the owner has open in Dia, or opens the page in Dia and closes it afterwards. chrome-devtools-axi drives that same Dia for anything beyond reading.
 
 ## Code
 
@@ -17,28 +16,4 @@
 - Say the effect, then any condition it needs, in full sentences. Use a second line only to keep a fact.
 - No labels, banners, links, parentheticals, mechanism, or values that drift such as versions and dates. Explain a workaround in words.
 
-## Git and GitHub
-
-- Worktrees and branches:
-  - Use `wt switch --create <branch>` to create a branch connected to a worktree.
-  - Isolate pieces of work within their own worktree. Unrelated work should be done in separate worktrees.
-  - While a branch is unmerged, what the owner asks for about the code it changes is feedback on that branch. It goes in that branch's worktree, and the PR's title and description are updated to cover it.
-  - A new feature, or a fix to something else, is unrelated work, even in the same tool or the same conversation.
-- Commits:
-  - One commit per behavior change. History reads as what changed, never as how the work went.
-  - Commit a behavior change once it is done.
-  - Feedback on a commit that main does not hold yet, including an edit the owner makes by hand, is folded into that commit, never into a new one:
-    - Use `git commit --amend` for the latest commit.
-    - Use `git commit --fixup <commit>` and `git rebase --autosquash` for an older commit.
-    - If the branch has already been pushed, then use `git push --force-with-lease` to push the updates.
-  - Write a commit body only when it adds to the subject line. Keep it short.
-  - The body holds only the why and what the diff does not show. No trailers, links or sign-offs that name the tool, model or session that wrote the commit.
-- Pull Requests:
-  - Opening a PR, merging it, and setting auto-merge are three separate requests. Do one only when the owner asks for it by name. A request to open a PR is not a request to merge it.
-  - Opening: one PR per piece of work.
-  - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
-  - Merging:
-    1. Use `wt switch main` to move to the `main` branch checkout.
-    2. Then use `npx -y gh-axi pr merge <number> --merge` to merge the PR with a merge commit, which keeps each commit's signature. GitHub deletes the remote branch.
-    3. Then use `wt remove <branch>` to remove the worktree and the local branch.
-    4. Then check `wt list`. If the branch or its worktree is still listed, report what was left behind and why.
+Load the `git` skill before working in a git repository.
