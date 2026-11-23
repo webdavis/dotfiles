@@ -2,4 +2,8 @@
 {{- range $name := includeTemplate "personal-mcp-servers.json.tmpl" . | fromJson | keys | sortAlpha -}}
 {{-   $denied = append $denied (dict "serverName" $name) -}}
 {{- end -}}
-{{ dict "deniedMcpServers" $denied | toPrettyJson }}
+{{ dict
+  "deniedMcpServers" $denied
+  "enabledPlugins" (dict "git@webdavis" false)
+  "claudeMdExcludes" (list "/Users/stephen/.claude/CLAUDE.md" "**/.clauth/profiles/broccoli/runtime-*/CLAUDE.md")
+  | toPrettyJson }}
