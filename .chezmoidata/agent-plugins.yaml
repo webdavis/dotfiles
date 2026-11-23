@@ -20,7 +20,6 @@ plugins:
           - "rust-analyzer-lsp@claude-plugins-official"
           - "skill-creator@claude-plugins-official"
           - "claude-md-management@claude-plugins-official"
-          - "code-simplifier@claude-plugins-official"
       - marketplace: "anthropics/skills"
         plugins:
           - "document-skills@anthropic-agent-skills"
@@ -74,7 +73,6 @@ plugins:
           plugins:
             - "frontend-design@claude-plugins-official"
             - "skill-creator@claude-plugins-official"
-            - "code-simplifier@claude-plugins-official"
             - "security-guidance@claude-plugins-official"
             - "playwright@claude-plugins-official"
       extensions:
