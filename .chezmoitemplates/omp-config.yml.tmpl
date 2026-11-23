@@ -77,8 +77,8 @@
 {{- else -}}
 {{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
 {{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}
-{{-   $onDemand := (includeTemplate "agent-derived.json.tmpl" . | fromJson).on_demand_claude -}}
-{{-   $merged = setValueAtPath (list "skills" "manualSkills") ($onDemand | uniq | sortAlpha) $merged -}}
+{{-   $derived := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
+{{-   $merged = setValueAtPath (list "skills" "manualSkills") (concat $derived.on_demand_claude $derived.on_demand_omp | uniq | sortAlpha) $merged -}}
 {{-   $merged = setValueAtPath (list "compaction" "thresholdTokens") (fromYaml "500000") $merged -}}
 {{- /* Scouts, mechanical subagents and background jobs run on the smol role. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "smol") "anthropic/claude-sonnet-5-5" $merged -}}

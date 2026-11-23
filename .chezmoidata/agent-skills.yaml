@@ -1,4 +1,4 @@
-# Skills per harness, grouped by the command that installs them. media: skills only a media session loads.
+# Skills per harness, grouped by the command that installs them. media: skills only a media session loads. omp: skills only omp loads.
 # repo: owner/repo[/path] for npx; slug: @owner/skill for clawhub; skill: a store folder another tool writes.
 # on_demand: loads only when asked. hermes: profiles that link it from the store.
 # claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
@@ -61,6 +61,10 @@ skills:
         - skill: "cua-driver"
           on_demand: true
         - skill: "rex"
+    omp:
+      npx:
+        - repo: "anthropics/knowledge-work-plugins/legal"
+          on_demand: true
     media:
       npx:
         - repo: "heygen-com/hyperframes"
