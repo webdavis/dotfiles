@@ -66,6 +66,7 @@ packages:
         - croc
         - csvlens
         - curl
+        - d2
         - deno
         - difftastic
         - direnv
