@@ -93,6 +93,8 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 - Extension from npm: an entry under `broccoli.omp.extensions`, with its npm name as `package`. To remove one, delete its entry, then run `omp --profile broccoli plugin uninstall <package>`.
 - Skill: its name under `auto` or `manual` in `broccoli.omp.tech_support`, or in `broccoli.omp.engineering` when only an engineering session needs it. A skill named in neither list is absent from the session.
 - A skill whose plain name another plugin holds is named with its prefix, as `omp --profile broccoli skill list` prints it.
+- Shell command that runs unasked: its command words under `broccoli.omp.bash.allow`, as in `pylon issues get`. Name only commands that change nothing. A glob the session must refuse goes under `broccoli.omp.bash.deny`.
+- `dot_config/agents/pylon-guard/` asks before any other `pylon` command in every permission mode, through an omp extension and a Claude Code hook that share one policy. Broccoli Claude sessions deny the claude.ai Pylon connector.
 
 ## Neovim
 
