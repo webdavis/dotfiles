@@ -74,6 +74,17 @@
 {{-       end -}}
 {{-     end -}}
 {{-   end -}}
+{{-   $merged = setValueAtPath (list "tools" "approval" "eval") "prompt" $merged -}}
+{{-   $denyRules := list -}}
+{{-   range .broccoli.omp.bash.deny -}}
+{{-     $denyRules = append $denyRules (dict "match" . "approval" "deny") -}}
+{{-   end -}}
+{{-   $allowRules := list -}}
+{{-   range .broccoli.omp.bash.allow -}}
+{{-     $allowRules = concat $allowRules (list (dict "match" . "approval" "allow") (dict "match" (printf "%s *" .) "approval" "allow")) -}}
+{{-   end -}}
+{{-   $firstMatchWins := concat $merged.bash.patterns $denyRules $allowRules -}}
+{{-   $merged = setValueAtPath (list "bash" "patterns") $firstMatchWins $merged -}}
 {{- else -}}
 {{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
 {{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}

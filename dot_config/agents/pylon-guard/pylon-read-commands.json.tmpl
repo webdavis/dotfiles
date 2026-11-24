@@ -1,0 +1,7 @@
+{{- $reads := list -}}
+{{- range .broccoli.omp.bash.allow -}}
+{{-   if hasPrefix "pylon " . -}}
+{{-     $reads = append $reads . -}}
+{{-   end -}}
+{{- end -}}
+{{ $reads | toPrettyJson }}

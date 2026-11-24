@@ -2,4 +2,9 @@
 {{- range $name := includeTemplate "personal-mcp-servers.json.tmpl" . | fromJson | keys | sortAlpha -}}
 {{-   $denied = append $denied (dict "serverName" $name) -}}
 {{- end -}}
-{{ dict "deniedMcpServers" $denied | toPrettyJson }}
+{{- $pylonHook := dict "type" "command" "command" "bun \"$HOME/.config/agents/pylon-guard/claude-hook.ts\" || exit 2" -}}
+{{ dict
+  "deniedMcpServers" $denied
+  "permissions" (dict "deny" (list "mcp__claude_ai_Pylon"))
+  "hooks" (dict "PreToolUse" (list (dict "matcher" "Bash" "hooks" (list $pylonHook))))
+  | toPrettyJson }}
