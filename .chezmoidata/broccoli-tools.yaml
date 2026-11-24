@@ -557,7 +557,6 @@ broccoli:
           - resend/cli
           - clerk/stable
           - supabase/tap
-          - schpet/tap
           - pylon-labs/tap
         trusted_taps:
           - redpanda-data/tap
@@ -568,7 +567,6 @@ broccoli:
           - resend/cli
           - clerk/stable
           - supabase/tap
-          - schpet/tap
           - pylon-labs/tap
         formulae:
           - temporal
@@ -587,7 +585,6 @@ broccoli:
           - clerk/stable/clerk
           - supabase/tap/supabase
           - livekit-cli
-          - schpet/tap/linear
           - pylon-labs/tap/pylon
         casks:
           - claude-code@latest
