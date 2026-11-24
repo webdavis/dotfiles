@@ -1,6 +1,6 @@
 ; Lets these packages run their install scripts, which npm blocks by default.
 ; They need them to build native code or unpack their tools.
-allow-scripts=@doist/todoist-cli,@github/keytar,@google/genai,@mistweaverco/tree-sitter-graphql,@mistweaverco/tree-sitter-kulala,better-sqlite3,esbuild,node-llama-cpp,node-pty,onnxruntime-node,protobufjs,tree-sitter,tree-sitter-go,tree-sitter-javascript,tree-sitter-python,tree-sitter-rust,tree-sitter-typescript
+allow-scripts=@github/keytar,@google/genai,@mistweaverco/tree-sitter-graphql,@mistweaverco/tree-sitter-kulala,@todoist/cli,better-sqlite3,esbuild,node-llama-cpp,node-pty,onnxruntime-node,protobufjs,tree-sitter,tree-sitter-go,tree-sitter-javascript,tree-sitter-python,tree-sitter-rust,tree-sitter-typescript
 
 ; Stops the funding message npm prints after most installs.
 fund=false
