@@ -268,6 +268,74 @@ broccoli:
           - manage_aeo_recommendations
           - manage_onboarding
           - submit_feedback
+      heimdall:
+        type: http
+        url: https://heimdall.broccoli.com/mcp
+        ask:
+          - invoke_operation
+          - report_friction
+      slack:
+        type: http
+        url: https://mcp.slack.com/mcp
+        oauth:
+          clientId: "1601185624273.8899143856786"
+          callbackPort: 3118
+        ask:
+          - slack_add_list_comment
+          - slack_add_list_record
+          - slack_add_reaction
+          - slack_complete_file_upload
+          - slack_create_canvas
+          - slack_create_conversation
+          - slack_create_list
+          - slack_get_file_upload_url
+          - slack_schedule_message
+          - slack_send_message
+          - slack_send_message_draft
+          - slack_update_canvas
+          - slack_update_list
+          - slack_update_list_comment
+          - slack_update_list_record
+      linear:
+        type: http
+        url: https://mcp.linear.app/mcp
+        ask:
+          - create_attachment
+          - create_attachment_from_upload
+          - create_initiative_label
+          - create_issue_label
+          - delete_attachment
+          - delete_comment
+          - delete_diff_comment
+          - delete_status_update
+          - mark_notification
+          - merge_diff
+          - prepare_attachment_upload
+          - prepare_file_upload
+          - resolve_diff_thread
+          - restore_initiative_label
+          - restore_issue_label
+          - restore_project_label
+          - retire_initiative_label
+          - retire_issue_label
+          - retire_project_label
+          - save_comment
+          - save_diff_comment
+          - save_document
+          - save_initiative
+          - save_initiative_label
+          - save_issue
+          - save_issue_label
+          - save_milestone
+          - save_project
+          - save_project_label
+          - save_release
+          - save_release_note
+          - save_status_update
+          - share_issue
+          - submit_diff_review
+          - unshare_issue
+          - update_diff
   engineering:
     npx:
       - repo: "Infisical/ai-skills/skills/infisical-access-control"
