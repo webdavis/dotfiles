@@ -283,7 +283,6 @@ packages:
         packages:
           - "@agentclientprotocol/claude-agent-acp"
           - "@clawdbot/lobster"
-          - "@doist/todoist-cli"
           - "@earendil-works/pi-coding-agent"
           - "@elevenlabs/cli"
           - "@fission-ai/openspec"
@@ -291,6 +290,7 @@ packages:
           - "@mistweaverco/kulala-ls"
           - "@oliverames/mcp-server-for-ynab"
           - "@tobilu/qmd"
+          - "@todoist/cli"
           - "@toon-format/cli"
           - acpx
           - agentmail-cli
