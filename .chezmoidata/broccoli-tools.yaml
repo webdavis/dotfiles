@@ -274,6 +274,28 @@ broccoli:
         ask:
           - invoke_operation
           - report_friction
+      slack:
+        type: http
+        url: https://mcp.slack.com/mcp
+        oauth:
+          clientId: "1601185624273.8899143856786"
+          callbackPort: 3118
+        ask:
+          - slack_add_list_comment
+          - slack_add_list_record
+          - slack_add_reaction
+          - slack_complete_file_upload
+          - slack_create_canvas
+          - slack_create_conversation
+          - slack_create_list
+          - slack_get_file_upload_url
+          - slack_schedule_message
+          - slack_send_message
+          - slack_send_message_draft
+          - slack_update_canvas
+          - slack_update_list
+          - slack_update_list_comment
+          - slack_update_list_record
   engineering:
     npx:
       - repo: "Infisical/ai-skills/skills/infisical-access-control"
