@@ -43,8 +43,6 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "OAUTHLIB_INSECURE_TRANSPORT") "1" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "command") (printf "%s/.local/bin/cua-driver" $home) $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .packages.source_builds.scalebar.install_dir) $merged -}}
 {{- /* Codex passes TMPDIR but not XDG_RUNTIME_DIR, where nvim-mcp looks for Neovim's socket first. */ -}}
 {{- /* Codex reads tools once per session, so they are listed before a Neovim opens. */ -}}
