@@ -47,9 +47,6 @@ plugins:
         - marketplace: "addyosmani/agent-skills"
           plugins:
             - "agent-skills@addy-agent-skills"
-        - marketplace: "michael-denyer/pstack-claude"
-          plugins:
-            - "pstack@pstack-claude"
         - marketplace: "DietrichGebert/ponytail"
           plugins:
             - "ponytail@ponytail"
@@ -133,9 +130,6 @@ plugins:
       - marketplace: "DietrichGebert/ponytail"
         plugins:
           - "ponytail@ponytail"
-      - marketplace: "michael-denyer/pstack-claude"
-        plugins:
-          - "pstack@pstack-claude"
       - marketplace: "obsidianmd/obsidian-skills"
         plugins:
           - "obsidian@obsidian-skills"
