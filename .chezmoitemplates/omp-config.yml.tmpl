@@ -7,6 +7,8 @@
 {{- if ne (kindOf $merged) "map" -}}
 {{-   $merged = dict -}}
 {{- end -}}
+{{- /* Later lines win over these, and a setting declared in neither place keeps its live value. */ -}}
+{{- $merged = mergeOverwrite $merged (includeTemplate "omp-settings.yml" . | fromYaml) -}}
 
 {{- /* Every tool call runs unasked, and the rules below stop the bash tool alone. */ -}}
 {{- /* A Broccoli session reaches work systems, so its shell commands ask first. */ -}}
@@ -21,14 +23,13 @@
     (dict "match" "rm *" "approval" "deny")) $merged -}}
 {{- $merged = setValueAtPath (list "bash" "gitGuard") true $merged -}}
 
-{{- /* Tool problem reports and traces stay on this Mac, and OpenAI gets no sessions to train on. */ -}}
+{{- /* Tool problem reports and traces stay on this Mac. */ -}}
 {{- $merged = setValueAtPath (list "dev" "autoqa") false $merged -}}
 {{- $merged = setValueAtPath (list "telemetry" "otlpExportEnabled") false $merged -}}
-{{- $merged = setValueAtPath (list "providers" "openai-codex" "daybreak") false $merged -}}
+{{- $merged = setValueAtPath (list "providers" "openai-codex" "daybreak") true $merged -}}
 {{- $merged = setValueAtPath (list "secrets" "enabled") true $merged -}}
 
-{{- /* Homebrew updates omp. */ -}}
-{{- $merged = setValueAtPath (list "startup" "checkUpdate") false $merged -}}
+{{- $merged = setValueAtPath (list "startup" "checkUpdate") true $merged -}}
 
 {{- $merged = setValueAtPath (list "symbolPreset") "nerd" $merged -}}
 {{- $merged = setValueAtPath (list "tui" "vimMode") true $merged -}}
@@ -91,6 +92,7 @@
 {{-   $derived := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
 {{-   $merged = setValueAtPath (list "skills" "manualSkills") (concat $derived.on_demand_claude $derived.on_demand_omp | uniq | sortAlpha) $merged -}}
 {{-   $merged = setValueAtPath (list "compaction" "thresholdTokens") (fromYaml "500000") $merged -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "default") "anthropic/claude-fable-5-2" $merged -}}
 {{- /* Scouts, mechanical subagents and background jobs run on the smol role. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "smol") "anthropic/claude-sonnet-5-5" $merged -}}
 {{- /* These roles exist only so the model cycle keys can reach their models. */ -}}
