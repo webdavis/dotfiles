@@ -2,6 +2,7 @@ packages:
   macos:
     homebrew:
       taps:
+        - agent-ecosystem/tap
         - antoniorodr/memo
         - buo/cask-upgrade
         - can1357/tap
@@ -18,6 +19,7 @@ packages:
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
+        - agent-ecosystem/tap
         - antoniorodr/memo
         - buo/cask-upgrade
         - can1357/tap
@@ -36,6 +38,7 @@ packages:
         - act
         - actionlint
         - age
+        - agent-ecosystem/tap/skill-validator
         - agent-safehouse
         - antoniorodr/memo/memo
         - atomicparsley
