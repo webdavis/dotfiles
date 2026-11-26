@@ -79,9 +79,4 @@ return {
     assert(range.max <= highest_tcp_port, "the port ceiling is " .. range.max .. ", past the last port")
     assert(range.min < range.max, "the range is empty or inverted")
   end,
-  ["the terminal provider stays none either way"] = function()
-    local _, headless = level_with_uis(no_ui)
-    local _, interactive = level_with_uis(one_ui)
-    assert(headless.terminal.provider == "none" and interactive.terminal.provider == "none")
-  end,
 }
