@@ -1,0 +1,95 @@
+autolearn:
+  enabled: false
+bash:
+  allowCompoundCommands: true
+browser:
+  tern: true
+btw:
+  inject: true
+collab:
+  displayName: webdavis
+compaction:
+  handoffSaveToDisk: true
+  thresholdPercent: 60
+composer:
+  predictionAlternatives: true
+  predictions: true
+  shape: band
+  tokenRate: true
+display:
+  pinnedAgents: collapsed
+  shellVisualization: true
+  shimmer: kitt
+  smoothStreaming: true
+  subagentLivePreview: true
+edit:
+  mode: hashline
+eval:
+  autoBackground:
+    enabled: true
+includeWorkspaceTree: false
+mcp:
+  renderMarkdownResults: true
+omitThinking: false
+power:
+  sleepPrevention: system
+providers:
+  anthropic:
+    serverSideFallback: false
+ratchet:
+  enabled: false
+read:
+  renderMarkdown: true
+  summarize:
+    prose: false
+readLineNumbers: true
+retry:
+  fallbackOn: usage-limit
+  waitForUsageReset: false
+shellMinimizer:
+  sourceOutlineLevel: default
+showHardwareCursor: true
+speech:
+  enhanced: true
+spelling:
+  autocomplete: smollm
+  autocorrect: false
+spotlight:
+  experiment:
+    enabled: false
+startup:
+  quiet: true
+  showSplash: false
+statusLine:
+  compactThinkingLevel: false
+  preset: default
+  sessionAccent: true
+  showHookStatus: true
+  transparent: false
+steeringMode: all
+stt:
+  enabled: false
+  submitTrigger: say-submit
+task:
+  crossInstance: true
+  showResolvedModelBadge: true
+terminal:
+  showProgress: true
+textVerbosity: low
+theme:
+  dark: titanium
+  light: light
+tts:
+  localVoice: harper
+tui:
+  autoGraph: auto
+  codexResetFireworks: true
+  completeScrollback: false
+  hyperlinks: always
+  imeSafeCursor: true
+  textSizing: false
+  tight: false
+  titleState: true
+  vimModeDisplay: text
+update:
+  auto: true
