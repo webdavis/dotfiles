@@ -1,0 +1,19 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* moshi-hook install adds these keys after each apply, so they are kept from the live file. */ -}}
+{{- $raw := index .chezmoi "stdin" | default "" -}}
+{{- $live := fromYaml ($raw | trim) -}}
+{{- if ne (kindOf $live) "map" -}}
+{{-   $live = dict -}}
+{{- end -}}
+{{- $merged := include "private_dot_hermes/profiles/private_lara/.declared-config.yaml.age" | decrypt | fromYaml -}}
+{{- range $path := list (list "terminal" "client_env_passthrough") (list "plugins" "enabled") -}}
+{{-   $value := dig (index $path 0) (index $path 1) nil $live -}}
+{{-   if not (kindIs "invalid" $value) -}}
+{{-     $merged = setValueAtPath $path $value $merged -}}
+{{-   end -}}
+{{- end -}}
+{{- if deepEqual $merged $live -}}
+{{- $raw -}}
+{{- else -}}
+{{ $merged | toYaml }}
+{{- end -}}
