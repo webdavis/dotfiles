@@ -433,25 +433,9 @@ npm_package_is_installed() {
   npm ls -g "$package" >/dev/null 2>&1
 }
 
-drop_fsevents_blocked_script_warning() {
-  awk '
-    /^npm warn install-scripts [0-9]+ packages? had install scripts blocked/ {
-      block = $0; in_block = 1; only_fsevents = ($0 ~ / 1 package had /); next
-    }
-    in_block {
-      block = block "\n" $0
-      if ($0 ~ /^npm warn install-scripts   / && $0 !~ /^npm warn install-scripts   fsevents@[0-9][^ ]* \(install: node-gyp rebuild\)$/) only_fsevents = 0
-      if ($0 ~ /^npm warn install-scripts Run /) { if (!only_fsevents) print block; in_block = 0 }
-      next
-    }
-    { print }
-    END { if (in_block) print block }
-  '
-}
-
 install_npm_package() {
   local package=$1
-  gtimeout "$npm_install_time_limit_seconds" npm install -g "$package" 2> >(drop_fsevents_blocked_script_warning >&2)
+  gtimeout "$npm_install_time_limit_seconds" npm install -g "$package"
 }
 
 install_missing_npm_package() {
