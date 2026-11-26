@@ -29,7 +29,7 @@ broccoli:
         plugins:
           - "worktrunk@worktrunk"
     extensions:
-      - package: "omp-clear-screen"
+      - package: "@webdavis/omp-clearscreen"
     bash:
       deny:
         - "pylon *--base-url*"
