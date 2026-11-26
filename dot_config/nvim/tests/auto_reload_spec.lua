@@ -121,6 +121,8 @@ return {
     -- Armed first, so this covers `unwatch` stopping a live watch.
     arm()
     module.unwatch(bufnr)
+    -- Newer Neovim reloads from its own file watcher, which is not the watch this case stopped.
+    vim.bo[bufnr].autoread = false
 
     write(path, "two two\n")
 

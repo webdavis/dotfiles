@@ -50,6 +50,7 @@ packages:
         - bash-preexec
         - bat
         - bat-extras
+        - bob
         - bore-cli
         - brightness
         - btop
@@ -126,7 +127,6 @@ packages:
         - maven
         - mosh
         - mtr
-        - neovim
         - netcat
         - ngrep
         - nmap

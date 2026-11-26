@@ -1,0 +1,23 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly bob_bin="/opt/homebrew/bin/bob"
+
+main() {
+  if [[ ! -x $bob_bin ]]; then
+    report_section 'neovim' 'skipped: bob is not installed'
+    return 0
+  fi
+  if [[ "$("$bob_bin" list 2>/dev/null)" == *nightly*Used* ]]; then
+    return 0
+  fi
+  report_section 'neovim' 'switching to the nightly build'
+  "$bob_bin" use nightly
+}
+
+main "$@"
+{{ end -}}

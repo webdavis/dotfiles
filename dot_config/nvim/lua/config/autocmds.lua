@@ -36,7 +36,7 @@ vim.api.nvim_create_autocmd({ "BufDelete", "BufUnload" }, {
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = augroup("highlight_yank"),
   callback = function()
-    (vim.hl or vim.highlight).on_yank()
+    (vim.hl.hl_op or vim.hl.on_yank)()
   end,
 })
 
