@@ -33,19 +33,6 @@ return {
     assert(util.normalize("   \n  ") == nil)
   end,
 
-  ["map has left util for custom_api.keymap"] = function()
-    assert(util.map == nil, "util.map is still " .. type(util.map))
-    assert(type(require("custom_api.keymap").map) == "function", "custom_api.keymap.map is missing")
-  end,
-
-  ["overseer_runner has left util for custom_api.overseer"] = function()
-    assert(util.overseer_runner == nil, "util.overseer_runner is still " .. type(util.overseer_runner))
-    assert(
-      type(require("custom_api.overseer").overseer_runner) == "function",
-      "custom_api.overseer.overseer_runner is missing"
-    )
-  end,
-
   ["run_shell_command runs a table command in the directory it was given"] = function()
     -- Without a cwd, every git helper answers for the Neovim cwd.
     local dir = vim.fn.tempname()

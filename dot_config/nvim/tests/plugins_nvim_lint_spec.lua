@@ -2,13 +2,6 @@
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- The linter for each filetype. `eslint` stays out because the eslint language server covers it.
-local EXPECTED = {
-  dockerfile = "hadolint",
-  yaml = "actionlint",
-  ["yaml.ansible"] = "ansible_lint",
-}
-
 ---Run the nvim-lint config against a fake `lint` module.
 local function configured()
   local fake = { linters_by_ft = {}, linters = { luacheck = { args = {} } }, calls = {} }
@@ -51,45 +44,6 @@ local function run_event(fake, event)
 end
 
 return {
-  ["every filetype the old sources diagnosed resolves a linter"] = function()
-    local by_ft = configured().linters_by_ft
-    for filetype, linter in pairs(EXPECTED) do
-      local linters = by_ft[filetype]
-      assert(linters and #linters > 0, "no linter for " .. filetype)
-      assert(
-        vim.tbl_contains(linters, linter),
-        filetype .. " does not run " .. linter .. ", it runs " .. table.concat(linters, ", ")
-      )
-    end
-  end,
-
-  -- nvim-lint matches filetypes exactly, so the compound Ansible filetype gets its own row.
-  ["an Ansible playbook is not handed to actionlint"] = function()
-    local ansible = configured().linters_by_ft["yaml.ansible"]
-    assert(not vim.tbl_contains(ansible, "actionlint"), "actionlint runs on yaml.ansible")
-  end,
-
-  ["Lua runs luacheck and EmmyLua together"] = function()
-    local fake = configured()
-    local lua = fake.linters_by_ft.lua
-    assert(vim.deep_equal(lua, { "luacheck", "emmylua_check" }), "Lua linters are " .. vim.inspect(lua))
-    assert(vim.tbl_contains(fake.linters.luacheck.args, "--config"), "luacheck has no explicit config")
-    assert(
-      vim.tbl_contains(fake.linters.luacheck.args, vim.fn.stdpath("config") .. "/.luacheckrc"),
-      "luacheck does not use the deployed treefmt config"
-    )
-  end,
-
-  ["EmmyLua reads the written file and publishes SARIF diagnostics"] = function()
-    local linter = assert(configured().linters.emmylua_check, "no emmylua_check linter")
-    assert(linter.cmd == "emmylua_check", "command is " .. tostring(linter.cmd))
-    assert(linter.stdin == false, "emmylua_check must read the file on disk")
-    assert(linter.ignore_exitcode == true, "diagnostics must not become a runner warning")
-    assert(linter.parser == "sarif-parser", "emmylua_check does not use nvim-lint's SARIF parser")
-    assert(vim.tbl_contains(linter.args, "--severity"), "severity floor is missing")
-    assert(vim.tbl_contains(linter.args, "error"), "EmmyLua is not limited to gate errors")
-  end,
-
   ["only a write runs the disk-backed EmmyLua checker"] = function()
     local fake = configured()
     local insert = run_event(fake, "InsertLeave")

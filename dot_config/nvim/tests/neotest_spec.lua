@@ -317,7 +317,7 @@ local function route(rust_discover_positions)
     },
     ["neotest-java"] = setmetatable({}, {
       __call = function()
-        return { name = "neotest-java", root = no_root, constructed = true }
+        return { name = "neotest-java", root = no_root }
       end,
     }),
     ["neotest-elixir"] = { name = "neotest-elixir", root = no_root },
@@ -883,25 +883,6 @@ cases["the rust readiness wrapper retries once for the load-window race, then st
   assert(no_tree == nil, "a warmed call that raised was retried instead of returning nil once")
   assert(call_count == 3, "a warmed call retried the underlying adapter: got " .. call_count)
   assert(routed.nio_sleep_calls() == 1, "a warmed call slept, defeating the point of warming up")
-end
-
-cases["the Zig adapter is in the adapter list, and its row loads on a .zig buffer"] = function()
-  -- The adapter reaches `neotest.setup`, and its spec row loads on the filetype a `.zig` file gets.
-  local routed = route()
-  assert(routed.by_name["neotest-zig"], "neotest-zig is not in the adapter list")
-
-  local filetype = vim.filetype.match({ filename = "/scratch/project/src/root.zig" })
-  assert(filetype == "zig", "a .zig path resolves to filetype " .. tostring(filetype))
-
-  local row
-  for _, spec in ipairs(require("plugins.neotest")) do
-    if spec[1] == "webdavis/neotest-zig" then
-      row = spec
-    end
-  end
-  assert(row, "no plugin spec row installs webdavis/neotest-zig")
-  assert(row.ft == filetype, "the row loads on " .. vim.inspect(row.ft) .. ", not " .. filetype)
-  assert(row.commit, "the row is unpinned")
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()

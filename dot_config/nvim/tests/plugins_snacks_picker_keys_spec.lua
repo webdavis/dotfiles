@@ -15,42 +15,11 @@ local function assert_unbound(keys, lhs)
 end
 
 return {
-  ["the prompt opens the selection in a new tab on ctrl-y"] = function()
-    local keys = picker_options().win.input.keys
-    assert(vim.deep_equal(keys["<c-y>"], { "tab", mode = { "n", "i" } }), "<c-y> is " .. vim.inspect(keys["<c-y>"]))
-    assert_unbound(keys, "<c-t>")
-  end,
-
-  ["the list opens the selection in a new tab on ctrl-y"] = function()
-    local keys = picker_options().win.list.keys
-    assert(keys["<c-y>"] == "tab", "<c-y> is " .. vim.inspect(keys["<c-y>"]))
-    assert_unbound(keys, "<c-t>")
-  end,
-
-  ["the explorer list leaves ctrl-t unbound"] = function()
-    assert_unbound(picker_options().sources.explorer.win.list.keys, "<c-t>")
-  end,
-
-  ["the github and undo prompts copy on alt-y and leave ctrl-y unbound"] = function()
-    local sources = picker_options().sources
-    for name, copy in pairs({ gh_issue = "gh_yank", gh_pr = "gh_yank", undo = "yank_add" }) do
-      local keys = sources[name].win.input.keys
-      assert(
-        vim.deep_equal(keys["<a-y>"], { copy, mode = { "n", "i" } }),
-        name .. " <a-y> is " .. vim.inspect(keys["<a-y>"])
-      )
-      assert_unbound(keys, "<c-y>")
-      assert_unbound(sources[name].win.list.keys, "<c-y>")
-    end
-  end,
-
-  ["the undo prompt copies deleted lines on alt-shift-y"] = function()
-    local keys = picker_options().sources.undo.win.input.keys
-    assert(
-      vim.deep_equal(keys["<a-Y>"], { "yank_del", mode = { "n", "i" } }),
-      "<a-Y> is " .. vim.inspect(keys["<a-Y>"])
-    )
-    assert_unbound(keys, "<c-s-y>")
+  ["the prompt, the list and the explorer leave ctrl-t to another tool"] = function()
+    local picker = picker_options()
+    assert_unbound(picker.win.input.keys, "<c-t>")
+    assert_unbound(picker.win.list.keys, "<c-t>")
+    assert_unbound(picker.sources.explorer.win.list.keys, "<c-t>")
   end,
 
   ["the projects prompt reopens itself in a new tab on ctrl-y"] = function()

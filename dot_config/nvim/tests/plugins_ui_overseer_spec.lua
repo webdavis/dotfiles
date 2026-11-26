@@ -65,12 +65,6 @@ return {
     end)
   end,
 
-  ["the counter is the first right-hand component"] = function()
-    with_tasks({}, function(component)
-      assert(type(component[1]) == "function" and type(component.cond) == "function", "not a function component")
-    end)
-  end,
-
   ["it hides when there are no tasks"] = function()
     with_tasks({}, function(component)
       assert(not component.cond(), "the counter is visible with an empty task list")

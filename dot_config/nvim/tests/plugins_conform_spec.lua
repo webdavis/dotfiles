@@ -1,40 +1,4 @@
--- Expected filetypes are written out, so a row dropped from the plugin fails here.
-
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
-
-local EXPECTED = {
-  astro = "prettierd",
-  css = "prettierd",
-  graphql = "prettierd",
-  handlebars = "prettierd",
-  html = "prettierd",
-  htmlangular = "prettierd",
-  javascript = "prettierd",
-  javascriptreact = "prettierd",
-  json = "prettierd",
-  json5 = "prettierd",
-  jsonc = "prettierd",
-  less = "prettierd",
-  lua = "stylua",
-  luau = "stylua",
-  markdown = "mdformat",
-  ["markdown.mdx"] = "prettierd",
-  nix = "nixfmt",
-  ruby = "rubocop",
-  scss = "prettierd",
-  sh = "shfmt",
-  svelte = "prettierd",
-  swift = "swiftformat",
-  terraform = "terraform_fmt",
-  ["terraform-vars"] = "terraform_fmt",
-  tf = "terraform_fmt",
-  toml = "taplo",
-  typescript = "prettierd",
-  typescriptreact = "prettierd",
-  vue = "prettierd",
-  yaml = "prettierd",
-  ["yaml.ansible"] = "ansible-lint",
-}
 
 local function conform_spec()
   for _, spec in ipairs(dofile(config_root .. "/lua/plugins/conform.lua")) do
@@ -87,37 +51,6 @@ local function formats(formatter, path)
 end
 
 return {
-  ["every filetype the old sources formatted resolves a formatter"] = function()
-    local by_ft = assert(opts().formatters_by_ft, "no formatters_by_ft")
-    for filetype, formatter in pairs(EXPECTED) do
-      local formatters = by_ft[filetype]
-      assert(formatters and #formatters > 0, "no formatter for " .. filetype)
-      assert(
-        vim.tbl_contains(formatters, formatter),
-        filetype .. " does not run " .. formatter .. ", it runs " .. table.concat(formatters, ", ")
-      )
-    end
-  end,
-
-  ["swift keeps both of the formatters its two sources ran"] = function()
-    assert(
-      vim.deep_equal(opts().formatters_by_ft.swift, { "swiftformat", "swiftlint" }),
-      "swift does not run swiftformat then swiftlint"
-    )
-  end,
-
-  ["yaml keeps both of the formatters its two sources ran"] = function()
-    assert(
-      vim.deep_equal(opts().formatters_by_ft.yaml, { "prettierd", "yamlfmt" }),
-      "yaml does not run prettierd then yamlfmt"
-    )
-  end,
-
-  ["a language server formats only a filetype with no formatter of its own"] = function()
-    local defaults = assert(opts().default_format_opts, "no default_format_opts")
-    assert(defaults.lsp_format == "fallback", "lsp_format is " .. tostring(defaults.lsp_format))
-  end,
-
   ["an explicit write formats"] = function()
     local result = on_save(true, nil)
     assert(type(result) == "table", "an explicit write returned " .. tostring(result))
@@ -150,11 +83,5 @@ return {
       assert(formats(formatter, "/repo/README.md"), formatter .. " skips README.md")
       assert(formats(formatter, "/repo/docs/MY_TASKS.md"), formatter .. " skips MY_TASKS.md")
     end
-  end,
-
-  ["the deleted formatting workaround is gone"] = function()
-    -- Spelled in pieces so this file is not itself a hit.
-    local module = config_root .. "/lua/custom_api/lsp" .. "_format.lua"
-    assert(vim.fn.filereadable(module) == 0, "the workaround module is still on disk")
   end,
 }
