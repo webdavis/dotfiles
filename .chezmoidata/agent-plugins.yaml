@@ -80,7 +80,7 @@ plugins:
             - "fff-multi-grep"
         - package: "omp-cache-meter"
         - package: "@jetserge/pi-contextual-stash"
-        - package: "omp-clear-screen"
+        - package: "@webdavis/omp-clearscreen"
       ask:
         - "mcp__workspace_mcp_batch_modify_gmail_message_labels"
         - "mcp__workspace_mcp_check_drive_file_public_access"
