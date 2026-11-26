@@ -3,6 +3,12 @@
 - Delete with `trash`, never `rm`.
 - To read a web page, run `scrapepage <url>`. It reads the tab the owner has open in Dia, or opens the page in Dia and closes it afterwards. chrome-devtools-axi drives that same Dia for anything beyond reading.
 
+## Replies
+
+- Keep replies as short as the content allows, and no shorter. Everything the owner needs to decide or act on stays; everything else goes.
+- Lead with the answer. Skip recaps of what the owner already knows. Keep a caveat or an unchecked item only when it would change what the owner does.
+- Put long findings in a file, and say in one line where.
+
 ## Code
 
 - Code is self-documenting. A comment is the last resort.
