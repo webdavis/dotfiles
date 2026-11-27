@@ -1,6 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
-# dam config: {{ include "dot_config/dam/config.lua" | sha256sum }}
 
 set -euo pipefail
 
@@ -23,7 +22,7 @@ main() {
   if dam sync enable "$remote" --now >/dev/null; then
     report_line "enabled at every login and started."
   else
-    report_line "WARNING: dam sync enable $remote failed; the next change to the dam config retries." >&2
+    report_line "WARNING: dam sync enable $remote failed; the next apply retries." >&2
   fi
 }
 
