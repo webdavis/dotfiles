@@ -1,0 +1,31 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# dam config: {{ include "dot_config/dam/config.lua" | sha256sum }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly remote="todoist"
+
+dam_is_installed() {
+  command -v dam >/dev/null 2>&1
+}
+
+main() {
+  report_section 'dam' "background sync of $remote"
+
+  if ! dam_is_installed; then
+    report_line "dam is not installed, skipping."
+    return
+  fi
+
+  if dam sync enable "$remote" --now >/dev/null; then
+    report_line "enabled at every login and started."
+  else
+    report_line "WARNING: dam sync enable $remote failed; the next change to the dam config retries." >&2
+  fi
+}
+
+main "$@"
+{{ end -}}
